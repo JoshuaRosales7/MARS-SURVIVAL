@@ -153,7 +153,7 @@ More detail is available in [Architecture](docs/ARCHITECTURE.md) and [Verificati
 ### Frontend
 
 ```powershell
-git clone <your-github-repository-url>
+git clone https://github.com/JoshuaRosales7/Mars-Survival.git
 cd Martian
 npm.cmd install
 npm.cmd run dev
