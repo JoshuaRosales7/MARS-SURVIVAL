@@ -3,15 +3,15 @@
 import {
   Activity, AlertTriangle, Box, ChevronDown, ChevronRight, ChevronUp, CircleGauge, Database, Download,
   BrainCircuit, Check, Droplets, FlaskConical, Gauge, Globe2, Layers3, LoaderCircle,
-  Map, MapPin, Mountain, Navigation, Pause, Play, Radiation, RotateCcw, Search, Send,
-  ShieldCheck, Sparkles, Timer, Users, Zap,
+  Map, MapPin, Maximize2, Minimize2, Mountain, Navigation, PanelLeftClose, PanelLeftOpen,
+  PanelRightClose, PanelRightOpen, Pause, Play, Radiation, RotateCcw, Search, Send,
+  ShieldCheck, Sparkles, Timer, Users, Zap, Keyboard,
   type LucideIcon,
 } from "lucide-react";
 import { Area, AreaChart, LineChart, Line as ChartLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { jsPDF } from "jspdf";
-import AdvancedMarsGlobe from "@/components/AdvancedMarsGlobe";
-import TerrainLab3D from "@/components/TerrainLab3D";
 import { LANDMARKS, SOURCES, type Landmark } from "@/data/mars";
 import {
   buildRoute, evaluateMission, initialBearing, normalizeLon,
@@ -20,6 +20,19 @@ import {
 import { analyzeMissionRobustly, toApiPayload, type AresAnalysis } from "@/lib/ares";
 import { buildConceptualTerrain } from "@/lib/terrain";
 import { useMissionStore } from "@/lib/store";
+
+function VisualizerLoading({ label }: { label: string }) {
+  return <div className="visualizer-loading" role="status"><span/><b>{label}</b><small>Preparando motor de visualización</small></div>;
+}
+
+const AdvancedMarsGlobe = dynamic(() => import("@/components/AdvancedMarsGlobe"), {
+  ssr: false,
+  loading: () => <VisualizerLoading label="Cargando globo orbital" />,
+});
+const TerrainLab3D = dynamic(() => import("@/components/TerrainLab3D"), {
+  ssr: false,
+  loading: () => <VisualizerLoading label="Construyendo terreno 3D" />,
+});
 
 const TILE_BASE = process.env.NEXT_PUBLIC_MARS_TILE_BASE || "https://trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/default/default028mm";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -57,7 +70,7 @@ function MapView({ route, simPoint }: { route: Coordinate[]; simPoint: Coordinat
     (commit ? setPoint : setCursor)(p);
   };
   return <div className="map-view" onMouseMove={(e) => click(e, false)} onClick={(e) => click(e, true)}>
-    {layers.imagery && <div className="map-tiles"><img src={TILE_WEST} alt="Hemisferio occidental MOLA" /><img src={TILE_EAST} alt="Hemisferio oriental MOLA" /></div>}
+    {layers.imagery && <div className="map-tiles"><img src={TILE_WEST} alt="Hemisferio occidental MOLA" loading="eager" decoding="async" draggable={false}/><img src={TILE_EAST} alt="Hemisferio oriental MOLA" loading="eager" decoding="async" draggable={false}/></div>}
     <svg viewBox="0 0 1000 500" preserveAspectRatio="none" aria-label="Mapa equirectangular de Marte">
       {layers.grid && <g className="grid-lines">{[-60,-30,0,30,60].map(lat => <line key={lat} x1="0" x2="1000" y1={(90-lat)/180*500} y2={(90-lat)/180*500} />)}{[-120,-60,0,60,120].map(lon => <line key={lon} y1="0" y2="500" x1={(lon+180)/360*1000} x2={(lon+180)/360*1000} />)}</g>}
       {layers.routes && paths.map((segment, i) => <path key={i} d={segment.map((p, j) => `${j ? "L" : "M"}${project(p).x},${project(p).y}`).join(" ")} className="route-path" />)}
@@ -94,6 +107,11 @@ export default function MarsCommandCenter() {
   const [leftTab, setLeftTab] = useState<"plan"|"ares"|"layers"|"places">("plan");
   const [bottomTab, setBottomTab] = useState<"profile"|"terrain"|"routes"|"sources">("profile");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [uiReady, setUiReady] = useState(false);
   const [search, setSearch] = useState("");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [generativeAI, setGenerativeAI] = useState(false);
@@ -113,6 +131,16 @@ export default function MarsCommandCenter() {
   const bearing = initialBearing(store.base, store.destination);
   const phase = store.progress === 0 ? "Preparada" : store.progress >= 1 ? "Completada" : store.config.returnRequired && store.progress > 0.5 ? "Regreso" : "Travesía";
 
+  const toggleFocus = useCallback(() => {
+    setFocusMode(value => {
+      const next = !value;
+      setDrawerOpen(false);
+      setLeftCollapsed(next);
+      setRightCollapsed(next);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 2500);
@@ -127,6 +155,52 @@ export default function MarsCommandCenter() {
       if (requestedView === "terrain") setBottomTab("terrain");
     }
   }, [store.setView]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("mars-survival-ui") || "{}");
+      if (typeof saved.drawerOpen === "boolean") setDrawerOpen(saved.drawerOpen);
+      if (typeof saved.leftCollapsed === "boolean") setLeftCollapsed(saved.leftCollapsed);
+      if (typeof saved.rightCollapsed === "boolean") setRightCollapsed(saved.rightCollapsed);
+      if (typeof saved.focusMode === "boolean") setFocusMode(saved.focusMode);
+    } catch { /* Prefer safe defaults when storage is unavailable. */ }
+    setUiReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!uiReady) return;
+    window.localStorage.setItem("mars-survival-ui", JSON.stringify({ drawerOpen, leftCollapsed, rightCollapsed, focusMode }));
+  }, [drawerOpen, focusMode, leftCollapsed, rightCollapsed, uiReady]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", store.view);
+    window.history.replaceState({}, "", url);
+  }, [store.view]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (event.key === "1") store.setView("globe");
+      else if (event.key === "2") store.setView("map");
+      else if (event.key === "3") store.setView("terrain");
+      else if (event.key.toLowerCase() === "f") toggleFocus();
+      else if (event.key.toLowerCase() === "d") setDrawerOpen(value => !value);
+      else if (event.key === " ") { event.preventDefault(); store.setRunning(!store.running); }
+      else if (event.key === "Escape") {
+        setShortcutsOpen(false);
+        setDrawerOpen(false);
+        if (focusMode) {
+          setFocusMode(false);
+          setLeftCollapsed(false);
+          setRightCollapsed(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [focusMode, store.running, store.setRunning, store.setView, toggleFocus]);
 
   useEffect(() => { setServerAres(null); }, [route, store.config]);
 
@@ -178,14 +252,16 @@ export default function MarsCommandCenter() {
     const blob = new Blob([JSON.stringify(body,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`mars-survival.${type}`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   };
 
-  return <main className={`app-shell ${drawerOpen ? "drawer-open" : "drawer-closed"}`}>
+  return <main className={`app-shell ${drawerOpen ? "drawer-open" : "drawer-closed"} ${leftCollapsed ? "left-collapsed" : ""} ${rightCollapsed ? "right-collapsed" : ""} ${focusMode ? "focus-mode" : ""}`}>
     <header className="topbar">
       <div className="brand"><span className="brand-mark"><Globe2 size={21}/></span><div><b>MARS SURVIVAL</b><small>PLANIFICA · EVALÚA · REGRESA</small></div></div>
       <div className="mission-breadcrumb"><span>MS-01</span><ChevronRight size={13}/><b>{store.base.name || "BASE"}</b><ChevronRight size={13}/><strong>{store.destination.name || "DESTINO"}</strong></div>
       <div className="location"><span>COORDENADA ACTIVA</span><b>{coords(store.cursor)}</b></div>
-      <div className="view-switch"><button className={store.view==="globe"?"active":""} onClick={()=>store.setView("globe")}><Box size={15}/> Globo</button><button className={store.view==="map"?"active":""} onClick={()=>store.setView("map")}><Map size={15}/> Mapa</button><button className={store.view==="terrain"?"active":""} onClick={()=>{store.setView("terrain");setBottomTab("terrain")}}><Mountain size={15}/> Terreno</button></div>
+      <div className="view-switch"><button aria-pressed={store.view==="globe"} className={store.view==="globe"?"active":""} onClick={()=>store.setView("globe")}><Box size={15}/> Globo</button><button aria-pressed={store.view==="map"} className={store.view==="map"?"active":""} onClick={()=>store.setView("map")}><Map size={15}/> Mapa</button><button aria-pressed={store.view==="terrain"} className={store.view==="terrain"?"active":""} onClick={()=>{store.setView("terrain");setBottomTab("terrain")}}><Mountain size={15}/> Terreno</button></div>
+      <div className="workspace-actions"><button className={focusMode?"active":""} onClick={toggleFocus} aria-pressed={focusMode} title="Modo enfoque (F)">{focusMode?<Minimize2 size={15}/>:<Maximize2 size={15}/>}<span>{focusMode?"Salir":"Enfoque"}</span></button><button className={shortcutsOpen?"active":""} onClick={()=>setShortcutsOpen(value=>!value)} aria-expanded={shortcutsOpen} title="Atajos de teclado"><Keyboard size={15}/><span>Atajos</span></button></div>
       <div className={`source-state ${apiOnline ? "online" : "local"}`}><i/>{apiOnline === null ? "COMPROBANDO API" : apiOnline ? "API CONECTADA" : "MODO LOCAL"}</div>
       <div className="export-menu"><Download size={16}/><select aria-label="Exportar misión" defaultValue="" onChange={(e)=>{if(e.target.value) exportMission(e.target.value as "json"|"geojson"|"pdf");e.target.value=""}}><option value="" disabled>Exportar</option><option value="pdf">Informe PDF</option><option value="json">Misión JSON</option><option value="geojson">Ruta GeoJSON</option></select></div>
+      {shortcutsOpen && <div className="shortcut-popover" role="dialog" aria-label="Atajos de teclado"><div><b>Atajos rápidos</b><button onClick={()=>setShortcutsOpen(false)} aria-label="Cerrar atajos">×</button></div><p><kbd>1</kbd><span>Globo</span><kbd>2</kbd><span>Mapa</span><kbd>3</kbd><span>Terreno</span><kbd>F</kbd><span>Modo enfoque</span><kbd>D</kbd><span>Panel de datos</span><kbd>Espacio</kbd><span>Iniciar o pausar</span><kbd>Esc</kbd><span>Cerrar paneles</span></p></div>}
     </header>
 
     <aside className="left-panel panel">
@@ -228,13 +304,15 @@ export default function MarsCommandCenter() {
     </aside>
 
     <section className="center-stage">
+      <button className="side-panel-toggle left" onClick={()=>{setFocusMode(false);setLeftCollapsed(value=>!value)}} aria-label={leftCollapsed?"Mostrar configuración de misión":"Ocultar configuración de misión"} title={leftCollapsed?"Mostrar configuración":"Ocultar configuración"}>{leftCollapsed?<PanelLeftOpen size={16}/>:<PanelLeftClose size={16}/>}</button>
+      <button className="side-panel-toggle right" onClick={()=>{setFocusMode(false);setRightCollapsed(value=>!value)}} aria-label={rightCollapsed?"Mostrar análisis de misión":"Ocultar análisis de misión"} title={rightCollapsed?"Mostrar análisis":"Ocultar análisis"}>{rightCollapsed?<PanelRightOpen size={16}/>:<PanelRightClose size={16}/>}</button>
       {store.view==="globe" ? <AdvancedMarsGlobe route={route} simPoint={simPoint} feasible={evaluation.feasible} cinematic={cinematic}/> : store.view==="terrain" ? <TerrainLab3D route={route} progress={store.progress}/> : <MapView route={route} simPoint={simPoint}/>}
       <div className="stage-label"><span>{store.view==="terrain"?"CORREDOR LOCAL / MODELO CONCEPTUAL":"OPERACIONES GLOBALES / MARS 2000"}</span><b>{store.view==="globe"?"GLOBO ORBITAL":store.view==="terrain"?"LABORATORIO DE TERRENO 3D":"MAPA EQUIRECTANGULAR"}</b></div>
       <div className="route-readout"><div><Navigation size={14}/><span>RUMBO INICIAL</span><b>{fmt(bearing,0)}°</b></div><div><Globe2 size={14}/><span>SOLO IDA</span><b>{fmt(evaluation.oneWayKm)} km</b></div><div><FlaskConical size={14}/><span>CIENCIA</span><b>{fmt(store.config.scienceHours)} h</b></div></div>
       <div className={`quality-badge ${store.view==="terrain"?"conceptual":""}`}><Database size={14}/><span>{store.view==="terrain"?"CALIDAD DEL TERRENO":"CALIDAD DE RUTA"}</span><b>{store.view==="terrain"?"PROXY CONCEPTUAL":"GEOMETRÍA GLOBAL"}</b><small>{store.view==="terrain"?"Requiere DEM para medición":"Terreno no evaluado"}</small></div>
       {store.view==="globe" && <button className={`cinematic-toggle ${cinematic?"active":""}`} onClick={()=>setCinematic(value=>!value)}><i/>{cinematic?"ÓRBITA CINEMÁTICA":"CÁMARA MANUAL"}</button>}
       {store.view!=="terrain" && <div className="map-legend"><span><i className="base-dot"/>Base</span><span><i className="target-dot"/>Destino</span><span><i className="vehicle-dot"/>Tripulación</span></div>}
-      <div className="sim-controls"><button aria-label={store.running?"Pausar":"Iniciar"} onClick={()=>store.setRunning(!store.running)}>{store.running?<Pause size={17}/>:<Play size={17}/>}</button><button aria-label="Reiniciar" onClick={store.reset}><RotateCcw size={16}/></button><div><span>{phase} · {fmt(store.progress*100,0)}%</span><div className="progress"><i style={{width:`${store.progress*100}%`}}/></div></div><select aria-label="Velocidad de simulación" value={store.simSpeed} onChange={e=>store.setSimSpeed(Number(e.target.value))}><option value={1}>1×</option><option value={4}>4×</option><option value={12}>12×</option></select></div>
+      <div className="sim-controls"><button aria-label={store.running?"Pausar":"Iniciar"} aria-pressed={store.running} onClick={()=>store.setRunning(!store.running)}>{store.running?<Pause size={17}/>:<Play size={17}/>}</button><button aria-label="Reiniciar" onClick={store.reset}><RotateCcw size={16}/></button><div aria-live="polite"><span>{phase} · {fmt(store.progress*100,0)}%</span><div className="progress" role="progressbar" aria-label="Progreso de simulación" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(store.progress*100)}><i style={{width:`${store.progress*100}%`}}/></div></div><select aria-label="Velocidad de simulación" value={store.simSpeed} onChange={e=>store.setSimSpeed(Number(e.target.value))}><option value={1}>1×</option><option value={4}>4×</option><option value={12}>12×</option></select></div>
     </section>
 
     <aside className="right-panel panel"><div className="panel-title"><div><span>ANÁLISIS DE MISIÓN</span><small>Modelo determinista v1.1</small></div><i className={evaluation.feasible?"ok":"bad"}>{evaluation.feasible?"VIABLE EN MODELO":"REVISAR MISIÓN"}</i></div>
