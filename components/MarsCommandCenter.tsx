@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  Activity, AlertTriangle, Box, ChevronRight, CircleGauge, Database, Download,
+  Activity, AlertTriangle, Box, ChevronDown, ChevronRight, ChevronUp, CircleGauge, Database, Download,
   BrainCircuit, Check, Droplets, FlaskConical, Gauge, Globe2, Layers3, LoaderCircle,
   Map, MapPin, Mountain, Navigation, Pause, Play, Radiation, RotateCcw, Search, Send,
   ShieldCheck, Sparkles, Timer, Users, Zap,
@@ -93,6 +93,7 @@ export default function MarsCommandCenter() {
   const store = useMissionStore();
   const [leftTab, setLeftTab] = useState<"plan"|"ares"|"layers"|"places">("plan");
   const [bottomTab, setBottomTab] = useState<"profile"|"terrain"|"routes"|"sources">("profile");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [generativeAI, setGenerativeAI] = useState(false);
@@ -177,7 +178,7 @@ export default function MarsCommandCenter() {
     const blob = new Blob([JSON.stringify(body,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`mars-survival.${type}`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   };
 
-  return <main className="app-shell">
+  return <main className={`app-shell ${drawerOpen ? "drawer-open" : "drawer-closed"}`}>
     <header className="topbar">
       <div className="brand"><span className="brand-mark"><Globe2 size={21}/></span><div><b>MARS SURVIVAL</b><small>PLANIFICA · EVALÚA · REGRESA</small></div></div>
       <div className="mission-breadcrumb"><span>MS-01</span><ChevronRight size={13}/><b>{store.base.name || "BASE"}</b><ChevronRight size={13}/><strong>{store.destination.name || "DESTINO"}</strong></div>
@@ -250,7 +251,7 @@ export default function MarsCommandCenter() {
       <section className="analysis assumptions"><h3><Users size={16}/> Registro de hipótesis</h3><p>Consumo O₂ <b>{store.config.oxygenKgPerPersonHour} kg/persona·h</b></p><p>Consumo de agua <b>{store.config.waterLitersPerPersonDay} L/persona·día</b></p><p>Consumo energético <b>{store.config.energyKwhPerHour} kWh/h</b></p><p>Contingencia <b>{store.config.contingencyPercent}%</b></p><small>Valores editables para comparar escenarios; no son certificación médica ni operacional.</small></section>
     </aside>
 
-    <section className="bottom-panel panel"><nav className="bottom-tabs"><button className={bottomTab==="profile"?"active":""} onClick={()=>setBottomTab("profile")}>Perfil de recursos</button><button className={bottomTab==="terrain"?"active":""} onClick={()=>setBottomTab("terrain")}>Perfil de terreno</button><button className={bottomTab==="routes"?"active":""} onClick={()=>setBottomTab("routes")}>Comparar rutas</button><button className={bottomTab==="sources"?"active":""} onClick={()=>setBottomTab("sources")}>Proveniencia científica</button></nav>
+    <section className="bottom-panel panel" aria-label="Datos de la misión"><nav className="bottom-tabs"><button className={bottomTab==="profile"?"active":""} onClick={()=>{setBottomTab("profile");setDrawerOpen(true)}}>Recursos</button><button className={bottomTab==="terrain"?"active":""} onClick={()=>{setBottomTab("terrain");setDrawerOpen(true)}}>Terreno</button><button className={bottomTab==="routes"?"active":""} onClick={()=>{setBottomTab("routes");setDrawerOpen(true)}}>Rutas</button><button className={bottomTab==="sources"?"active":""} onClick={()=>{setBottomTab("sources");setDrawerOpen(true)}}>Fuentes</button><button className="drawer-toggle" onClick={()=>setDrawerOpen(value=>!value)} aria-expanded={drawerOpen} aria-label={drawerOpen?"Minimizar panel de datos":"Abrir panel de datos"}>{drawerOpen?<ChevronDown size={16}/>:<ChevronUp size={16}/>}<span>{drawerOpen?"Minimizar":"Datos"}</span></button></nav>
       {bottomTab==="profile" && <div className="chart-wrap"><div className="chart-legend"><span className="oxygen">Oxígeno kg</span><span className="energy">Energía kWh</span><span className="water">Agua L</span><em>Perfil de elevación no disponible · DEM sin montar</em></div><ResponsiveContainer width="100%" height="100%"><LineChart data={timeline} margin={{top:8,right:10,bottom:0,left:-15}}><XAxis dataKey="h" stroke="#747a7e" tick={{fontSize:10}}/><YAxis stroke="#747a7e" tick={{fontSize:10}}/><Tooltip contentStyle={{background:"#191d20",border:"1px solid #3a4044",fontSize:11,borderRadius:9}} labelFormatter={v=>`${v} h`}/><ChartLine dataKey="oxygen" name="Oxígeno" stroke="#91a7aa" dot={false} strokeWidth={2}/><ChartLine dataKey="energy" name="Energía" stroke="#ce7657" dot={false} strokeWidth={2}/><ChartLine dataKey="water" name="Agua" stroke="#9c92a6" dot={false} strokeWidth={2}/></LineChart></ResponsiveContainer></div>}
       {bottomTab==="terrain" && <div className="chart-wrap terrain-profile-chart"><div className="chart-legend"><span className="terrain-height">Relieve proxy m</span><span className="terrain-slope">Pendiente conceptual °</span><em>Modelo reproducible · no procede de MOLA/HRSC</em></div><ResponsiveContainer width="100%" height="100%"><AreaChart data={terrainModel.profile.map(point=>({km:Number(point.distanceKm.toFixed(2)),elevation:Number(point.elevationM.toFixed(1)),slope:Number(point.slopeDeg.toFixed(1)),risk:point.risk}))} margin={{top:8,right:18,bottom:0,left:-10}}><defs><linearGradient id="terrainFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ce7657" stopOpacity={.42}/><stop offset="100%" stopColor="#ce7657" stopOpacity={.03}/></linearGradient></defs><XAxis dataKey="km" stroke="#747a7e" tick={{fontSize:10}} unit=" km"/><YAxis yAxisId="elevation" stroke="#9b7364" tick={{fontSize:10}}/><YAxis yAxisId="slope" orientation="right" stroke="#c9a06b" tick={{fontSize:10}} unit="°"/><Tooltip contentStyle={{background:"#191d20",border:"1px solid #3a4044",fontSize:11,borderRadius:9}} labelFormatter={v=>`${v} km`}/><Area yAxisId="elevation" dataKey="elevation" name="Relieve proxy" stroke="#ce7657" fill="url(#terrainFill)" strokeWidth={2}/><ChartLine yAxisId="slope" dataKey="slope" name="Pendiente conceptual" stroke="#c9a06b" dot={false} strokeWidth={1.5}/></AreaChart></ResponsiveContainer></div>}
       {bottomTab==="routes" && <div className="route-table"><div className="table-head"><span>ESTRATEGIA</span><span>SOLO IDA</span><span>DURACIÓN</span><span>CALIDAD</span><span>ESTADO</span></div>{routes.map(r=>{const ev=evaluateMission(r.points,store.config);const meta=STRATEGIES.find(s=>s.id===r.strategy)!;return <button key={r.strategy} className={store.strategy===r.strategy?"active":""} onClick={()=>store.setStrategy(r.strategy)}><b>{meta.name}<small>{meta.description}</small></b><span>{fmt(routeDistance(r.points))} km</span><span>{fmt(ev.durationHours)} h</span><span>Geométrica global</span><em className={ev.feasible?"ok":"bad"}>{ev.feasible?"Cumple":"Falla"}</em></button>})}</div>}

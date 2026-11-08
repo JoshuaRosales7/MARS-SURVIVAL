@@ -273,8 +273,9 @@ button:active { transform: translateY(1px); }
 
 /* 2026 interface refresh: calm scientific workspace */
 .app-shell {
-  grid-template-columns: 292px minmax(480px, 1fr) 316px;
-  grid-template-rows: 62px minmax(360px, 1fr) 218px;
+  grid-template-columns: 260px minmax(540px, 1fr) 282px;
+  grid-template-rows: 62px minmax(0, 1fr);
+  grid-template-areas: "top top top" "left center right";
   gap: 10px;
   padding: 10px;
   background:
@@ -488,20 +489,47 @@ button:active { transform: translateY(1px); }
 .risk { border-radius: 0 9px 9px 0; background: #191d20; }.risk span,.risk small { font-size: 8px; }.risk b { font-size: 10px; letter-spacing: .025em; }
 .reasons li,.assumptions p { font-size: 9px; }.assumptions > small { font-size: 8px; }
 
-.bottom-panel { border-top: 1px solid var(--line); overflow: hidden; }
+.bottom-panel {
+  grid-area: center;
+  align-self: end;
+  z-index: 8;
+  height: 48px;
+  margin: 12px;
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+  background: rgba(20,23,26,.94);
+  backdrop-filter: blur(18px);
+  transition: height .28s ease, box-shadow .28s ease;
+}
+.drawer-open .bottom-panel { height: 210px; box-shadow: 0 22px 54px rgba(0,0,0,.38); }
+.drawer-closed .bottom-panel { box-shadow: 0 10px 28px rgba(0,0,0,.22); }
+.bottom-panel > :not(.bottom-tabs) { opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+.drawer-open .bottom-panel > :not(.bottom-tabs) { opacity: 1; pointer-events: auto; transition-delay: .08s; }
 .bottom-tabs { height: 44px; padding: 4px 6px; gap: 3px; border-color: var(--line); }
 .bottom-tabs button { padding: 0 15px; border: 0; border-radius: 8px; font-size: 9px; letter-spacing: .025em; text-transform: none; }
+.bottom-tabs .drawer-toggle { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--text); background: #262b2f; padding: 0 12px; }
+.drawer-toggle span { font-size: 9px; }
+.drawer-open .sim-controls { bottom: 226px; }
+.drawer-closed .sim-controls { bottom: 74px; }
+.drawer-open .map-legend,
+.drawer-open .terrain-lab-controls,
+.drawer-open .terrain-stats { bottom: 226px; }
+.drawer-closed .map-legend,
+.drawer-closed .terrain-lab-controls,
+.drawer-closed .terrain-stats { bottom: 74px; }
+.drawer-open .map-credit { bottom: 230px; }
+.drawer-closed .map-credit { bottom: 78px; }
 .chart-wrap { height: 170px; padding: 7px 15px 10px; }.chart-legend { font-size: 9px; }
 .route-table button { font-size: 9px; }.route-table button:hover { background: rgba(255,255,255,.025); }.route-table button.active { background: rgba(145,167,170,.07); border-left-color: #91a7aa; }
 .sources { height: 170px; }.sources a,.convention { border-radius: 10px; background: #181c1f; }.sources a:hover { border-color: #6f7e80; }.sources a svg { color: #91a7aa; }.sources a b,.convention b { font-size: 9px; }.sources a span,.convention span { font-size: 8px; }
 
 @media (max-width: 1260px) {
-  .app-shell { grid-template-columns: 280px minmax(400px,1fr) 300px; }
+  .app-shell { grid-template-columns: 250px minmax(420px,1fr) 270px; }
   .mission-breadcrumb { display: none; }
   .location { display: none; }
 }
 @media (max-width: 1060px) {
-  .app-shell { grid-template-columns: 286px 1fr; grid-template-rows: 62px minmax(430px,1fr) 225px; grid-template-areas: "top top" "left center" "bottom bottom"; }
+  .app-shell { grid-template-columns: 250px 1fr; grid-template-rows: 62px minmax(0,1fr); grid-template-areas: "top top" "left center"; }
   .right-panel { display: none; }
   .source-state, .location { display: none; }
   .topbar { justify-content: space-between; }
@@ -516,7 +544,11 @@ button:active { transform: translateY(1px); }
   .left-panel { height: 520px; order: 2; }
   .center-stage { height: 58vh; min-height: 430px; order: 1; }
   .right-panel { display: block; order: 3; border: 0; max-height: none; }
-  .bottom-panel { height: 245px; order: 4; }
+  .bottom-panel { position: static; width: auto; margin: 0; align-self: auto; order: 4; }
+  .app-shell.drawer-closed .bottom-panel { height: 52px; }
+  .app-shell.drawer-open .bottom-panel { height: 245px; }
+  .drawer-open .sim-controls, .drawer-closed .sim-controls { bottom: 66px; }
+  .drawer-open .terrain-lab-controls, .drawer-closed .terrain-lab-controls { bottom: 72px; }
   .route-readout > div:nth-child(3), .map-legend { display: none; }
   .quality-badge { right: 12px; top: 14px; }.cinematic-toggle { right: 12px; top: 76px; }.stage-label { left: 13px; top: 14px; }.route-readout { left: 13px; top: 62px; }
   .sim-controls { width: calc(100% - 24px); }
