@@ -107,8 +107,8 @@ export default function MarsCommandCenter() {
   const [leftTab, setLeftTab] = useState<"plan"|"ares"|"layers"|"places">("plan");
   const [bottomTab, setBottomTab] = useState<"profile"|"terrain"|"routes"|"sources">("profile");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(true);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [uiReady, setUiReady] = useState(false);
@@ -135,8 +135,8 @@ export default function MarsCommandCenter() {
     setFocusMode(value => {
       const next = !value;
       setDrawerOpen(false);
-      setLeftCollapsed(next);
-      setRightCollapsed(next);
+      setLeftCollapsed(true);
+      setRightCollapsed(true);
       return next;
     });
   }, []);
@@ -158,7 +158,7 @@ export default function MarsCommandCenter() {
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem("mars-survival-ui") || "{}");
+      const saved = JSON.parse(window.localStorage.getItem("mars-survival-ui-v3") || "{}");
       if (typeof saved.drawerOpen === "boolean") setDrawerOpen(saved.drawerOpen);
       if (typeof saved.leftCollapsed === "boolean") setLeftCollapsed(saved.leftCollapsed);
       if (typeof saved.rightCollapsed === "boolean") setRightCollapsed(saved.rightCollapsed);
@@ -169,7 +169,7 @@ export default function MarsCommandCenter() {
 
   useEffect(() => {
     if (!uiReady) return;
-    window.localStorage.setItem("mars-survival-ui", JSON.stringify({ drawerOpen, leftCollapsed, rightCollapsed, focusMode }));
+    window.localStorage.setItem("mars-survival-ui-v3", JSON.stringify({ drawerOpen, leftCollapsed, rightCollapsed, focusMode }));
   }, [drawerOpen, focusMode, leftCollapsed, rightCollapsed, uiReady]);
 
   useEffect(() => {
@@ -193,8 +193,8 @@ export default function MarsCommandCenter() {
         setDrawerOpen(false);
         if (focusMode) {
           setFocusMode(false);
-          setLeftCollapsed(false);
-          setRightCollapsed(false);
+          setLeftCollapsed(true);
+          setRightCollapsed(true);
         }
       }
     };
@@ -304,8 +304,8 @@ export default function MarsCommandCenter() {
     </aside>
 
     <section className="center-stage">
-      <button className="side-panel-toggle left" onClick={()=>{setFocusMode(false);setLeftCollapsed(value=>!value)}} aria-label={leftCollapsed?"Mostrar configuración de misión":"Ocultar configuración de misión"} title={leftCollapsed?"Mostrar configuración":"Ocultar configuración"}>{leftCollapsed?<PanelLeftOpen size={16}/>:<PanelLeftClose size={16}/>}</button>
-      <button className="side-panel-toggle right" onClick={()=>{setFocusMode(false);setRightCollapsed(value=>!value)}} aria-label={rightCollapsed?"Mostrar análisis de misión":"Ocultar análisis de misión"} title={rightCollapsed?"Mostrar análisis":"Ocultar análisis"}>{rightCollapsed?<PanelRightOpen size={16}/>:<PanelRightClose size={16}/>}</button>
+      <button className="side-panel-toggle left" onClick={()=>{setFocusMode(false);setLeftCollapsed(value=>!value)}} aria-label={leftCollapsed?"Mostrar configuración de misión":"Ocultar configuración de misión"} title={leftCollapsed?"Mostrar configuración":"Ocultar configuración"}>{leftCollapsed?<PanelLeftOpen size={16}/>:<PanelLeftClose size={16}/>}<span>{leftCollapsed?"Misión":"Cerrar"}</span></button>
+      <button className="side-panel-toggle right" onClick={()=>{setFocusMode(false);setRightCollapsed(value=>!value)}} aria-label={rightCollapsed?"Mostrar análisis de misión":"Ocultar análisis de misión"} title={rightCollapsed?"Mostrar análisis":"Ocultar análisis"}><span>{rightCollapsed?"Análisis":"Cerrar"}</span>{rightCollapsed?<PanelRightOpen size={16}/>:<PanelRightClose size={16}/>}</button>
       {store.view==="globe" ? <AdvancedMarsGlobe route={route} simPoint={simPoint} feasible={evaluation.feasible} cinematic={cinematic}/> : store.view==="terrain" ? <TerrainLab3D route={route} progress={store.progress}/> : <MapView route={route} simPoint={simPoint}/>}
       <div className="stage-label"><span>{store.view==="terrain"?"CORREDOR LOCAL / MODELO CONCEPTUAL":"OPERACIONES GLOBALES / MARS 2000"}</span><b>{store.view==="globe"?"GLOBO ORBITAL":store.view==="terrain"?"LABORATORIO DE TERRENO 3D":"MAPA EQUIRECTANGULAR"}</b></div>
       <div className="route-readout"><div><Navigation size={14}/><span>RUMBO INICIAL</span><b>{fmt(bearing,0)}°</b></div><div><Globe2 size={14}/><span>SOLO IDA</span><b>{fmt(evaluation.oneWayKm)} km</b></div><div><FlaskConical size={14}/><span>CIENCIA</span><b>{fmt(store.config.scienceHours)} h</b></div></div>
