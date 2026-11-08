@@ -48,7 +48,7 @@ function Atmosphere() {
     <shaderMaterial
       vertexShader={ATMOSPHERE_VERTEX}
       fragmentShader={ATMOSPHERE_FRAGMENT}
-      uniforms={{ glowColor: { value: new Color("#ff7048") } }}
+      uniforms={{ glowColor: { value: new Color("#c86f56") } }}
       side={BackSide}
       blending={AdditiveBlending}
       transparent
@@ -84,8 +84,8 @@ function LandmarkSignals() {
     const start = new Vector3(...coordinateToVector(point, 2.035));
     const end = new Vector3(...coordinateToVector(point, 2.13 + index % 3 * .015));
     return <group key={point.id}>
-      <Line points={[start, end]} color="#f3b36c" lineWidth={.7} transparent opacity={.38} />
-      <mesh position={end}><sphereGeometry args={[.012, 8, 8]} /><meshBasicMaterial color="#f3b36c" /></mesh>
+      <Line points={[start, end]} color="#c4a174" lineWidth={.7} transparent opacity={.3} />
+      <mesh position={end}><sphereGeometry args={[.012, 8, 8]} /><meshBasicMaterial color="#c4a174" /></mesh>
     </group>;
   })}</>;
 }
@@ -106,7 +106,7 @@ function RoutePulse({ curve, offset, color }: { curve: CatmullRomCurve3; offset:
 }
 
 function AdvancedRoute({ route, feasible }: { route: Coordinate[]; feasible: boolean }) {
-  const color = feasible ? "#66d7ed" : "#ff765f";
+  const color = feasible ? "#96aaac" : "#cb6c60";
   const points = useMemo(() => route.map(point => new Vector3(...coordinateToVector(point, 2.07))), [route]);
   const curve = useMemo(() => new CatmullRomCurve3(points, false, "centripetal", .35), [points]);
   return <group>
@@ -124,10 +124,10 @@ function TelemetryVehicle({ point, feasible }: { point: Coordinate; feasible: bo
   });
   return <group position={position}>
     <group ref={ref}>
-      <mesh><icosahedronGeometry args={[.04, 1]} /><meshBasicMaterial color="#ffffff" /></mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.075, .006, 8, 40]} /><meshBasicMaterial color={feasible ? "#63e6be" : "#f06f62"} transparent opacity={.85} /></mesh>
+      <mesh><icosahedronGeometry args={[.04, 1]} /><meshBasicMaterial color="#eeeae4" /></mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.075, .006, 8, 40]} /><meshBasicMaterial color={feasible ? "#809d8e" : "#cf655c"} transparent opacity={.8} /></mesh>
     </group>
-    <pointLight intensity={1.4} distance={.7} color={feasible ? "#63e6be" : "#f06f62"} />
+    <pointLight intensity={1.1} distance={.7} color={feasible ? "#809d8e" : "#cf655c"} />
   </group>;
 }
 
@@ -142,8 +142,8 @@ function OrbitalContext() {
   }), []);
   const polar = useMemo(() => equator.map(point => new Vector3(point.x, point.z, point.y)), [equator]);
   return <group>
-    <Line points={equator} color="#66d7ed" lineWidth={.65} transparent opacity={.14} />
-    <Line points={polar} color="#8b9cff" lineWidth={.5} transparent opacity={.1} />
+    <Line points={equator} color="#91a7aa" lineWidth={.65} transparent opacity={.11} />
+    <Line points={polar} color="#9c92a6" lineWidth={.5} transparent opacity={.08} />
     <group ref={moons} rotation={[.2, 0, .08]}>
       <mesh position={[2.72, 0, 0]}><dodecahedronGeometry args={[.048, 0]} /><meshStandardMaterial color="#b9a99d" roughness={1} /></mesh>
       <mesh position={[-3.15, .18, 0]}><dodecahedronGeometry args={[.032, 0]} /><meshStandardMaterial color="#887d76" roughness={1} /></mesh>
@@ -175,10 +175,10 @@ function MarsSystem({ route, simPoint, feasible }: { route: Coordinate[]; simPoi
       <meshStandardMaterial map={layers.imagery ? east : null} color={layers.imagery ? "#ffffff" : "#a54c2f"} roughness={.88} metalness={.03} side={DoubleSide} />
     </mesh>
     {layers.atmosphere && <Atmosphere />}
-    {layers.grid && <mesh scale={1.004}><sphereGeometry args={[2, 36, 18]} /><meshBasicMaterial color="#6bd5e8" wireframe transparent opacity={.13} /></mesh>}
+    {layers.grid && <mesh scale={1.004}><sphereGeometry args={[2, 36, 18]} /><meshBasicMaterial color="#91a7aa" wireframe transparent opacity={.1} /></mesh>}
     {layers.routes && <AdvancedRoute route={route} feasible={feasible} />}
     {layers.landmarks && <LandmarkSignals />}
-    {layers.telemetry && <><SurfaceBeacon point={base} color="#63e6be" label="BASE" /><SurfaceBeacon point={destination} color="#ff8a5c" label="OBJETIVO" /><TelemetryVehicle point={simPoint} feasible={feasible} /></>}
+    {layers.telemetry && <><SurfaceBeacon point={base} color="#809d8e" label="BASE" /><SurfaceBeacon point={destination} color="#ce7657" label="OBJETIVO" /><TelemetryVehicle point={simPoint} feasible={feasible} /></>}
     {layers.orbits && <OrbitalContext />}
   </group>;
 }
@@ -190,13 +190,13 @@ export default function AdvancedMarsGlobe({ route, simPoint, feasible, cinematic
       dpr={[1, 1.65]}
       gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
     >
-      <color attach="background" args={["#03060b"]} />
-      <fog attach="fog" args={["#03060b", 20, 72]} />
-      <Stars radius={76} depth={44} count={2500} factor={2.1} saturation={.25} fade speed={.22} />
+      <color attach="background" args={["#0b0d0f"]} />
+      <fog attach="fog" args={["#0b0d0f", 20, 72]} />
+      <Stars radius={76} depth={44} count={1600} factor={1.8} saturation={.12} fade speed={.18} />
       <MarsSystem route={route} simPoint={simPoint} feasible={feasible} />
-      <directionalLight position={[5, 2.5, 4]} intensity={3.2} color="#ffd0ae" />
-      <pointLight position={[-4, -1.5, -2]} intensity={.35} color="#557bc7" />
-      <ambientLight intensity={.19} color="#6684ad" />
+      <directionalLight position={[5, 2.5, 4]} intensity={2.9} color="#e6cbb7" />
+      <pointLight position={[-4, -1.5, -2]} intensity={.24} color="#68767d" />
+      <ambientLight intensity={.22} color="#747e83" />
       <OrbitControls autoRotate={cinematic} autoRotateSpeed={.42} enablePan={false} minDistance={2.5} maxDistance={8.5} dampingFactor={.055} enableDamping />
     </Canvas>
     <div className="scanlines" />

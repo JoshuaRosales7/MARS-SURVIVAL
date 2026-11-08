@@ -9,3 +9,4 @@ __pycache__/
 .env
 coverage/
 site-archive.tar.gz
+docs/qa/

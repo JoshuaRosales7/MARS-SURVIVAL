@@ -9,12 +9,12 @@ import type { Coordinate } from "@/lib/mars";
 
 function terrainColor(point: ReturnType<typeof sampleConceptualTerrain>, riskOverlay: boolean) {
   if (riskOverlay) {
-    if (point.risk === "high") return new Color("#ef5e52");
-    if (point.risk === "medium") return new Color("#e9aa58");
-    return new Color("#5abf99");
+    if (point.risk === "high") return new Color("#bf665d");
+    if (point.risk === "medium") return new Color("#b99663");
+    return new Color("#71877c");
   }
   const normalized = Math.max(0, Math.min(1, (point.elevationM + 430) / 850));
-  return new Color("#3a1711").lerp(new Color("#d07a49"), normalized).lerp(new Color("#e6c19a"), Math.max(0, normalized - .72) * 1.7);
+  return new Color("#422b25").lerp(new Color("#a7664e"), normalized).lerp(new Color("#c5a98f"), Math.max(0, normalized - .72) * 1.7);
 }
 
 function TerrainMesh({ seed, lengthKm, widthKm, exaggeration, riskOverlay, contours }: { seed: number; lengthKm: number; widthKm: number; exaggeration: number; riskOverlay: boolean; contours: boolean }) {
@@ -40,7 +40,7 @@ function TerrainMesh({ seed, lengthKm, widthKm, exaggeration, riskOverlay, conto
       <meshStandardMaterial vertexColors roughness={.94} metalness={.02} side={DoubleSide} />
     </mesh>
     {contours && <mesh geometry={geometry} position={[0, .012, 0]}>
-      <meshBasicMaterial color="#ffd4a6" wireframe transparent opacity={.105} depthWrite={false} />
+      <meshBasicMaterial color="#d6c1ad" wireframe transparent opacity={.075} depthWrite={false} />
     </mesh>}
   </group>;
 }
@@ -58,8 +58,8 @@ function TerrainVehicle({ profile, progress, exaggeration }: { profile: TerrainP
   const point = profile[Math.min(profile.length - 1, Math.floor(progress * (profile.length - 1)))];
   useFrame(({ clock }) => { if (ref.current) ref.current.rotation.y = clock.elapsedTime * 1.8; });
   return <group position={[point.worldX, point.elevationM / 820 * exaggeration + .1, point.worldZ]}>
-    <group ref={ref}><mesh><icosahedronGeometry args={[.09, 1]} /><meshBasicMaterial color="#ffffff" /></mesh><mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.17, .012, 8, 36]} /><meshBasicMaterial color="#66d7ed" /></mesh></group>
-    <pointLight color="#66d7ed" intensity={2} distance={1.2} />
+    <group ref={ref}><mesh><icosahedronGeometry args={[.09, 1]} /><meshBasicMaterial color="#eee9e2" /></mesh><mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.17, .012, 8, 36]} /><meshBasicMaterial color="#9aabad" /></mesh></group>
+    <pointLight color="#9aabad" intensity={1.25} distance={1.2} />
   </group>;
 }
 
@@ -67,24 +67,24 @@ function CorridorScene({ route, progress, exaggeration, riskOverlay, contours }:
   const model = useMemo(() => buildConceptualTerrain(route), [route]);
   const routePoints = useMemo(() => model.profile.map(point => new Vector3(point.worldX, point.elevationM / 820 * exaggeration + .045, point.worldZ)), [model, exaggeration]);
   return <>
-    <color attach="background" args={["#05080d"]} />
-    <fog attach="fog" args={["#05080d", 9, 22]} />
+    <color attach="background" args={["#101214"]} />
+    <fog attach="fog" args={["#101214", 9, 22]} />
     <TerrainMesh seed={model.seed} lengthKm={model.lengthKm} widthKm={model.widthKm} exaggeration={exaggeration} riskOverlay={riskOverlay} contours={contours} />
-    <Line points={routePoints} color="#66d7ed" lineWidth={7} transparent opacity={.12} />
-    <Line points={routePoints} color="#d9fbff" lineWidth={2.2} />
-    <TerrainBeacon point={model.profile[0]} color="#63e6be" exaggeration={exaggeration} />
-    <TerrainBeacon point={model.profile.at(-1)!} color="#ff8a5c" exaggeration={exaggeration} />
+    <Line points={routePoints} color="#91a7aa" lineWidth={6} transparent opacity={.1} />
+    <Line points={routePoints} color="#d7dedc" lineWidth={2} />
+    <TerrainBeacon point={model.profile[0]} color="#809d8e" exaggeration={exaggeration} />
+    <TerrainBeacon point={model.profile.at(-1)!} color="#ce7657" exaggeration={exaggeration} />
     <TerrainVehicle profile={model.profile} progress={progress} exaggeration={exaggeration} />
-    <directionalLight position={[5, 8, 4]} intensity={3.6} color="#ffd5b4" castShadow />
-    <ambientLight intensity={.32} color="#7896be" />
-    <gridHelper args={[10, 20, "#466078", "#25394b"]} position={[0, -.72 * exaggeration, 0]} />
+    <directionalLight position={[5, 8, 4]} intensity={3.1} color="#ead4c1" castShadow />
+    <ambientLight intensity={.35} color="#6f7880" />
+    <gridHelper args={[10, 20, "#3d4649", "#252b2e"]} position={[0, -.72 * exaggeration, 0]} />
     <OrbitControls target={[0, 0, 0]} enableDamping dampingFactor={.06} minDistance={5.5} maxDistance={16} minPolarAngle={.35} maxPolarAngle={Math.PI / 2.05} />
   </>;
 }
 
 export default function TerrainLab3D({ route, progress }: { route: Coordinate[]; progress: number }) {
   const [exaggeration, setExaggeration] = useState(1.6);
-  const [riskOverlay, setRiskOverlay] = useState(true);
+  const [riskOverlay, setRiskOverlay] = useState(false);
   const [contours, setContours] = useState(true);
   const model = useMemo(() => buildConceptualTerrain(route), [route]);
   return <div className="terrain-lab-view">
