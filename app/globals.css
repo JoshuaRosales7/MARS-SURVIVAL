@@ -1013,3 +1013,129 @@ button:active { transform: translateY(1px); }
 @media (prefers-reduced-motion: reduce) {
   .terrain-view-presets button { transition: none; }
 }
+
+/* Global MOLA terrain */
+.terrain-global-view { background: #090b0d; }
+.terrain-global-view canvas { cursor: grab; }
+.terrain-global-view canvas:active { cursor: grabbing; }
+.global-terrain-title {
+  position: absolute;
+  top: 102px;
+  left: 50%;
+  z-index: 5;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border: 1px solid rgba(151,132,116,.34);
+  border-radius: 12px;
+  color: #e2d8ce;
+  background: rgba(18,17,17,.7);
+  box-shadow: 0 12px 30px rgba(0,0,0,.22);
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+}
+.global-terrain-title span { color: #a99482; font-size: 7px; font-weight: 700; letter-spacing: .14em; }
+.global-terrain-title b { font-size: 11px; letter-spacing: .06em; }
+.global-terrain-title small { color: #8e8c89; font-size: 7px; }
+.global-terrain-controls {
+  position: absolute;
+  left: 24px;
+  bottom: 84px;
+  z-index: 6;
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(105,102,98,.5);
+  border-radius: 13px;
+  background: rgba(20,21,22,.87);
+  box-shadow: 0 16px 42px rgba(0,0,0,.3);
+  backdrop-filter: blur(18px);
+}
+.global-terrain-controls button {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  color: #969a99;
+  background: transparent;
+  font: 650 8px ui-sans-serif, system-ui;
+  cursor: pointer;
+}
+.global-terrain-controls button:hover { color: #e4e6e2; background: rgba(255,255,255,.05); }
+.global-terrain-controls button i { width: 6px; height: 6px; border-radius: 50%; background: #5f6262; }
+.global-terrain-controls button.active { color: #e9e2da; background: rgba(210,139,91,.13); }
+.global-terrain-controls button.active i { background: #dd7e5c; box-shadow: 0 0 9px rgba(221,126,92,.55); }
+.global-terrain-stats {
+  position: absolute;
+  right: 24px;
+  bottom: 84px;
+  z-index: 5;
+  width: 330px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(105,102,98,.48);
+  border-radius: 13px;
+  background: rgba(20,21,22,.87);
+  box-shadow: 0 16px 42px rgba(0,0,0,.3);
+  backdrop-filter: blur(18px);
+}
+.global-terrain-stats div { min-width: 0; padding: 10px; border-right: 1px solid rgba(91,91,89,.32); }
+.global-terrain-stats div:last-child { border-right: 0; }
+.global-terrain-stats span { display: block; color: #7f8382; font-size: 6px; letter-spacing: .06em; }
+.global-terrain-stats b { display: block; margin-top: 4px; overflow: hidden; color: #e1ded8; font: 700 9px ui-monospace; white-space: nowrap; text-overflow: ellipsis; }
+.mola-elevation-legend {
+  position: absolute;
+  left: 50%;
+  bottom: 90px;
+  z-index: 5;
+  width: 210px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+  color: #a8aaa7;
+  font: 650 7px ui-monospace;
+}
+.mola-elevation-legend i { height: 5px; border-radius: 6px; background: linear-gradient(90deg,#39247c,#245fc1,#3ea7a6,#66b650,#e8c24a,#d95739,#f4eee7); }
+.mola-elevation-legend small { grid-column: 1/4; text-align: center; color: #727675; font-size: 6px; letter-spacing: .13em; }
+.global-terrain-source {
+  position: absolute;
+  right: 30px;
+  top: 238px;
+  z-index: 5;
+  color: #aaa49d;
+  font-size: 7px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-decoration: none;
+}
+.global-terrain-source:hover { color: #e4c5aa; }
+.app-shell.drawer-open .global-terrain-controls,
+.app-shell.drawer-open .global-terrain-stats { bottom: 260px; }
+.app-shell.drawer-open .mola-elevation-legend { bottom: 270px; }
+.app-shell.focus-mode .global-terrain-controls,
+.app-shell.focus-mode .global-terrain-stats { bottom: 24px; }
+.app-shell.focus-mode .mola-elevation-legend { bottom: 30px; }
+
+@media (max-width: 1050px) {
+  .global-terrain-stats { width: 260px; grid-template-columns: repeat(2, 1fr); }
+  .global-terrain-stats div:nth-child(2) { border-right: 0; }
+  .global-terrain-stats div:nth-child(-n+2) { border-bottom: 1px solid rgba(91,91,89,.32); }
+  .mola-elevation-legend { display: none; }
+}
+
+@media (max-width: 720px) {
+  .global-terrain-title { top: 126px; width: max-content; max-width: calc(100vw - 190px); }
+  .global-terrain-title span, .global-terrain-title small { display: none; }
+  .global-terrain-title b { font-size: 9px; }
+  .global-terrain-controls { left: 8px; right: 8px; bottom: 82px; justify-content: center; }
+  .global-terrain-controls button { flex: 1; justify-content: center; padding: 0 6px; }
+  .global-terrain-stats, .global-terrain-source { display: none; }
+  .app-shell.drawer-open .global-terrain-controls { bottom: calc(min(46dvh, 360px) + 16px); }
+}
