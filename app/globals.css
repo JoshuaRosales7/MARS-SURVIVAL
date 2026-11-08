@@ -1116,6 +1116,45 @@ button:active { transform: translateY(1px); }
   text-decoration: none;
 }
 .global-terrain-source:hover { color: #e4c5aa; }
+.terrain-camera-presets {
+  position: absolute;
+  top: 174px;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(105,102,98,.46);
+  border-radius: 11px;
+  background: rgba(20,21,22,.82);
+  backdrop-filter: blur(16px);
+}
+.terrain-camera-presets button {
+  min-width: 58px;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  color: #969a99;
+  background: transparent;
+  font: 650 8px ui-sans-serif, system-ui;
+  cursor: pointer;
+}
+.terrain-camera-presets button:hover { color: #ece9e3; background: rgba(255,255,255,.05); }
+.terrain-camera-presets button.active { color: #1b1816; background: #d6ad87; }
+.terrain-surface-controls {
+  width: 390px;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  align-items: end;
+  gap: 6px;
+  padding: 9px 10px;
+}
+.terrain-surface-controls label { color: #96938f; font-size: 7px; font-weight: 700; letter-spacing: .08em; }
+.terrain-surface-controls label b { margin-left: 6px; color: #e7ded3; font: 700 9px ui-monospace; }
+.terrain-surface-controls input { display: block; width: 100%; height: 4px; margin-top: 8px; accent-color: #d57b59; cursor: pointer; }
+.terrain-surface-controls button { min-width: 83px; }
 .app-shell.drawer-open .global-terrain-controls,
 .app-shell.drawer-open .global-terrain-stats { bottom: 260px; }
 .app-shell.drawer-open .mola-elevation-legend { bottom: 270px; }
@@ -1136,6 +1175,9 @@ button:active { transform: translateY(1px); }
   .global-terrain-title b { font-size: 9px; }
   .global-terrain-controls { left: 8px; right: 8px; bottom: 82px; justify-content: center; }
   .global-terrain-controls button { flex: 1; justify-content: center; padding: 0 6px; }
+  .terrain-camera-presets { top: 170px; }
+  .terrain-surface-controls { display: grid; grid-template-columns: minmax(100px, 1fr) auto auto; }
+  .terrain-surface-controls button { min-width: 65px; }
   .global-terrain-stats, .global-terrain-source { display: none; }
   .app-shell.drawer-open .global-terrain-controls { bottom: calc(min(46dvh, 360px) + 16px); }
 }
