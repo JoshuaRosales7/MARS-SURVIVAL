@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mars Survival | Mission Risk Intelligence",
-  description: "Plan, compare and simulate transparent round-trip Mars expeditions.",
+  title: "Mars Survival | Inteligencia de misión",
+  description: "Planifica, compara y simula expediciones marcianas con un modelo científico transparente.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="es"><body>{children}</body></html>;
 }

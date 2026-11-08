@@ -5,6 +5,8 @@ export type Strategy = "direct" | "conservative" | "science" | "limited";
 export type MissionConfig = {
   crew: number; speedKmh: number; oxygenKg: number; oxygenKgPerPersonHour: number;
   energyKwh: number; energyKwhPerHour: number; reservePercent: number;
+  waterLiters: number; waterLitersPerPersonDay: number;
+  radiationMsvPerHour: number; maxRadiationMsv: number;
   maxHours: number; scienceHours: number; contingencyPercent: number; returnRequired: boolean;
 };
 
@@ -37,6 +39,13 @@ export function routeDistance(points: Coordinate[]) {
   return points.slice(1).reduce((sum, p, i) => sum + greatCircleDistance(points[i], p), 0);
 }
 
+export function initialBearing(a: Coordinate, b: Coordinate): number {
+  const p1 = rad(a.lat), p2 = rad(b.lat), dl = rad(normalizeLon(b.lon - a.lon));
+  const y = Math.sin(dl) * Math.cos(p2);
+  const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
+
 export function buildRoute(base: Coordinate, destination: Coordinate, strategy: Strategy): Coordinate[] {
   if (strategy === "direct" || strategy === "limited") return interpolateGreatCircle(base, destination);
   const mid = interpolateGreatCircle(base, destination, 2)[1];
@@ -53,24 +62,40 @@ export function evaluateMission(oneWay: Coordinate[], config: MissionConfig) {
   const contingency = 1 + config.contingencyPercent / 100;
   const oxygenUsedKg = durationHours * config.crew * config.oxygenKgPerPersonHour * contingency;
   const energyUsedKwh = durationHours * config.energyKwhPerHour * contingency;
+  const waterUsedLiters = durationHours / 24 * config.crew * config.waterLitersPerPersonDay * contingency;
+  const radiationMsv = durationHours * config.radiationMsvPerHour;
   const oxygenRemaining = config.oxygenKg - oxygenUsedKg;
   const energyRemaining = config.energyKwh - energyUsedKwh;
+  const waterRemaining = config.waterLiters - waterUsedLiters;
   const oxygenReserve = config.oxygenKg * config.reservePercent / 100;
   const energyReserve = config.energyKwh * config.reservePercent / 100;
+  const waterReserve = config.waterLiters * config.reservePercent / 100;
   const constraints = {
     oxygen: oxygenRemaining >= oxygenReserve,
     energy: energyRemaining >= energyReserve,
+    water: waterRemaining >= waterReserve,
+    radiation: radiationMsv <= config.maxRadiationMsv,
     time: durationHours <= config.maxHours,
   };
   const feasible = Object.values(constraints).every(Boolean);
+  const margins = [
+    config.oxygenKg ? (oxygenRemaining - oxygenReserve) / config.oxygenKg : -1,
+    config.energyKwh ? (energyRemaining - energyReserve) / config.energyKwh : -1,
+    config.waterLiters ? (waterRemaining - waterReserve) / config.waterLiters : -1,
+    (config.maxHours - durationHours) / config.maxHours,
+    (config.maxRadiationMsv - radiationMsv) / config.maxRadiationMsv,
+  ];
+  const limitingMarginPercent = Math.min(...margins) * 100;
   const reasons = [
-    !constraints.oxygen && "Oxygen falls below the configured reserve.",
-    !constraints.energy && "Energy falls below the configured reserve.",
-    !constraints.time && "Mission duration exceeds the configured limit.",
-    feasible && "All resource constraints pass within this illustrative model.",
-    "Terrain safety is not certified: no route-specific DEM profile has been loaded."
+    !constraints.oxygen && "El oxígeno cae por debajo de la reserva configurada.",
+    !constraints.energy && "La energía cae por debajo de la reserva configurada.",
+    !constraints.water && "El agua cae por debajo de la reserva configurada.",
+    !constraints.radiation && "La exposición estimada supera el límite configurado.",
+    !constraints.time && "La duración supera el límite configurado.",
+    feasible && "Todas las restricciones de recursos se cumplen dentro del modelo.",
+    "La seguridad del terreno no está certificada: no hay un perfil DEM conectado."
   ].filter(Boolean) as string[];
-  return { oneWayKm, distanceKm, travelHours, durationHours, oxygenUsedKg, energyUsedKwh, oxygenRemaining, energyRemaining, feasible, constraints, reasons };
+  return { oneWayKm, distanceKm, travelHours, durationHours, oxygenUsedKg, energyUsedKwh, waterUsedLiters, radiationMsv, oxygenRemaining, energyRemaining, waterRemaining, limitingMarginPercent, feasible, constraints, reasons };
 }
 
 export function coordinateToVector(point: Coordinate, radius = 2.02): [number, number, number] {
@@ -80,6 +105,7 @@ export function coordinateToVector(point: Coordinate, radius = 2.02): [number, n
 
 export const DEFAULT_CONFIG: MissionConfig = {
   crew: 2, speedKmh: 4.5, oxygenKg: 18, oxygenKgPerPersonHour: 0.084,
-  energyKwh: 45, energyKwhPerHour: 1.2, reservePercent: 20,
+  energyKwh: 45, energyKwhPerHour: 1.2, waterLiters: 12, waterLitersPerPersonDay: 2.5,
+  radiationMsvPerHour: 0.025, maxRadiationMsv: 1, reservePercent: 20,
   maxHours: 18, scienceHours: 1.5, contingencyPercent: 15, returnRequired: true,
 };

@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import random
 from heapq import heappop, heappush
 from math import asin, cos, radians, sin, sqrt
+from statistics import quantiles
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
@@ -24,6 +29,10 @@ class MissionConfig(BaseModel):
     oxygen_kg_per_person_hour: float = Field(0.084, gt=0)
     energy_kwh: float = Field(45, ge=0)
     energy_kwh_per_hour: float = Field(1.2, gt=0)
+    water_liters: float = Field(12, ge=0)
+    water_liters_per_person_day: float = Field(2.5, gt=0)
+    radiation_msv_per_hour: float = Field(0.025, ge=0)
+    max_radiation_msv: float = Field(1, gt=0)
     reserve_percent: float = Field(20, ge=0, lt=100)
     max_hours: float = Field(18, gt=0)
     science_hours: float = Field(1.5, ge=0)
@@ -62,6 +71,17 @@ class SimulationRequest(MissionRequest):
     steps: int = Field(30, ge=2, le=1000)
 
 
+class AresRequest(MissionRequest):
+    question: str = Field("", max_length=500)
+    runs: int = Field(1200, ge=100, le=5000)
+
+
+class AresLanguage(BaseModel):
+    headline: str = Field(max_length=80)
+    briefing: str = Field(max_length=500)
+    answer: str = Field(max_length=700)
+
+
 def normalize_lon(lon: float) -> float:
     return (lon + 540) % 360 - 180
 
@@ -93,17 +113,140 @@ def evaluate(route: RouteResult, c: MissionConfig) -> dict:
     factor = 1 + c.contingency_percent / 100
     oxygen_used = duration * c.crew * c.oxygen_kg_per_person_hour * factor
     energy_used = duration * c.energy_kwh_per_hour * factor
-    oxygen_left, energy_left = c.oxygen_kg - oxygen_used, c.energy_kwh - energy_used
+    water_used = duration / 24 * c.crew * c.water_liters_per_person_day * factor
+    radiation = duration * c.radiation_msv_per_hour
+    oxygen_left, energy_left, water_left = c.oxygen_kg - oxygen_used, c.energy_kwh - energy_used, c.water_liters - water_used
     checks = {
         "oxygen": oxygen_left >= c.oxygen_kg * c.reserve_percent / 100,
         "energy": energy_left >= c.energy_kwh * c.reserve_percent / 100,
+        "water": water_left >= c.water_liters * c.reserve_percent / 100,
+        "radiation": radiation <= c.max_radiation_msv,
         "time": duration <= c.max_hours,
     }
     return {"distance_km": total_distance, "duration_hours": duration, "travel_hours": travel_hours,
             "oxygen_used_kg": oxygen_used, "oxygen_remaining_kg": oxygen_left,
             "energy_used_kwh": energy_used, "energy_remaining_kwh": energy_left,
+            "water_used_liters": water_used, "water_remaining_liters": water_left,
+            "radiation_msv": radiation,
             "constraints": checks, "feasible_within_model": all(checks.values()),
             "terrain_status": "insufficient-data", "disclaimer": "Educational planning estimate; not medical or operational certification."}
+
+
+def _percentile(values: list[float], percentile: int) -> float:
+    """Inclusive percentile, stable for the minimum supported sample count."""
+    return quantiles(values, n=100, method="inclusive")[percentile - 1]
+
+
+def analyze_uncertainty(req: AresRequest) -> dict:
+    """Reproducible scenario analysis. Inputs are assumptions, never forecasts."""
+    seed_material = req.model_dump_json(exclude={"question"})
+    seed = int(hashlib.sha256(seed_material.encode()).hexdigest()[:16], 16)
+    rng = random.Random(seed)
+    pass_counts = {key: 0 for key in ("oxygen", "energy", "water", "radiation", "time")}
+    durations: list[float] = []
+    margins: list[float] = []
+    successes = 0
+
+    for _ in range(req.runs):
+        c = req.config.model_copy(update={
+            "speed_kmh": max(0.5, req.config.speed_kmh * (1 + rng.gauss(0, .15))),
+            "oxygen_kg_per_person_hour": req.config.oxygen_kg_per_person_hour * max(.6, 1 + rng.gauss(0, .12)),
+            "energy_kwh_per_hour": req.config.energy_kwh_per_hour * max(.6, 1 + rng.gauss(0, .12)),
+            "water_liters_per_person_day": req.config.water_liters_per_person_day * max(.6, 1 + rng.gauss(0, .12)),
+            "radiation_msv_per_hour": req.config.radiation_msv_per_hour * max(.35, 1 + rng.gauss(0, .25)),
+        })
+        result = evaluate(req.route, c)
+        durations.append(result["duration_hours"])
+        normalized_margins = [
+            (result["oxygen_remaining_kg"] - c.oxygen_kg * c.reserve_percent / 100) / max(c.oxygen_kg, .001),
+            (result["energy_remaining_kwh"] - c.energy_kwh * c.reserve_percent / 100) / max(c.energy_kwh, .001),
+            (result["water_remaining_liters"] - c.water_liters * c.reserve_percent / 100) / max(c.water_liters, .001),
+            (c.max_hours - result["duration_hours"]) / c.max_hours,
+            (c.max_radiation_msv - result["radiation_msv"]) / c.max_radiation_msv,
+        ]
+        margins.append(min(normalized_margins) * 100)
+        for key, passed in result["constraints"].items():
+            pass_counts[key] += int(passed)
+        successes += int(result["feasible_within_model"])
+
+    probabilities = {key: round(value / req.runs * 100, 2) for key, value in pass_counts.items()}
+    critical = min(probabilities, key=probabilities.get)  # type: ignore[arg-type]
+    survival = round(successes / req.runs * 100, 2)
+    duration_p90 = _percentile(durations, 90)
+    c = req.config
+    contingency = 1 + c.contingency_percent / 100
+    reserve_factor = max(.05, 1 - c.reserve_percent / 100)
+    requirements = {
+        "oxygen": duration_p90 * c.crew * c.oxygen_kg_per_person_hour * contingency / reserve_factor,
+        "energy": duration_p90 * c.energy_kwh_per_hour * contingency / reserve_factor,
+        "water": duration_p90 / 24 * c.crew * c.water_liters_per_person_day * contingency / reserve_factor,
+    }
+    actions: list[dict] = []
+    if c.oxygen_kg < requirements["oxygen"] * 1.02:
+        target = int(requirements["oxygen"] + .999)
+        actions.append({"id": "oxygen", "label": f"Subir O₂ a {target} kg", "rationale": "Cubre el consumo del percentil 90 sin invadir la reserva configurada.", "configPatch": {"oxygenKg": target}})
+    if c.energy_kwh < requirements["energy"] * 1.02:
+        target = int(requirements["energy"] + .999)
+        actions.append({"id": "energy", "label": f"Subir energía a {target} kWh", "rationale": "Protege el presupuesto energético frente a demoras y variación de consumo.", "configPatch": {"energyKwh": target}})
+    if c.water_liters < requirements["water"] * 1.02:
+        target = int(requirements["water"] + .999)
+        actions.append({"id": "water", "label": f"Subir agua a {target} L", "rationale": "Mantiene la reserva de agua en el escenario lento del percentil 90.", "configPatch": {"waterLiters": target}})
+    if c.max_hours < duration_p90:
+        target = int(duration_p90 + .999)
+        actions.append({"id": "time", "label": f"Ampliar ventana a {target} h", "rationale": "Evita que una reducción plausible de velocidad invalide la ventana operativa.", "configPatch": {"maxHours": target}})
+    radiation_p90 = duration_p90 * c.radiation_msv_per_hour * 1.32
+    if radiation_p90 > c.max_radiation_msv:
+        science_target = max(0, round(c.science_hours - min(1, c.science_hours), 1))
+        actions.append({"id": "radiation", "label": "Reducir duración o exposición", "rationale": f"La dosis conservadora ronda {radiation_p90:.2f} mSv; aumentar el límite no reduce el riesgo físico.", "configPatch": {"scienceHours": science_target}})
+    actions.sort(key=lambda action: probabilities.get(action["id"], 100))
+
+    factor_es = {"oxygen": "oxígeno", "energy": "energía", "water": "agua", "radiation": "radiación", "time": "tiempo"}
+    headline = "Misión robusta" if survival >= 90 else "Misión sensible" if survival >= 60 else "Misión no autorizable"
+    briefing = f"{req.runs:,} futuros plausibles evaluados. {survival:.0f}% conserva simultáneamente recursos, tiempo y dosis dentro de los límites."
+    question = req.question.lower().strip()
+    if any(word in question for word in ("mejor", "optim", "cambiar", "recom")) and actions:
+        answer = f"La mejora de mayor impacto es: {actions[0]['label']}. {actions[0]['rationale']}"
+    else:
+        answer = f"ARES estima {survival:.0f}% de éxito bajo las variaciones simuladas. El cuello de botella es {factor_es[critical]}."
+
+    return {
+        "mode": "local", "runs": req.runs, "survivalProbability": survival,
+        "confidence": {"durationP10": round(_percentile(durations, 10), 2), "durationP90": round(duration_p90, 2), "marginP10": round(_percentile(margins, 10), 2), "marginP90": round(_percentile(margins, 90), 2)},
+        "constraintProbabilities": probabilities, "criticalFactor": critical,
+        "headline": headline, "briefing": briefing, "answer": answer, "actions": actions[:4],
+        "caveats": [
+            "Las distribuciones representan supuestos de escenario, no pronósticos medidos.",
+            "No hay DEM numérico: pendiente, rocas y transitabilidad siguen sin evaluar.",
+            "La radiación usa una tasa constante editable, no meteorología espacial en tiempo real.",
+        ],
+    }
+
+
+def enrich_with_openai(analysis: dict, question: str) -> dict:
+    """Let the model communicate verified facts; never let it replace the calculator."""
+    if not os.getenv("OPENAI_API_KEY"):
+        return analysis
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(timeout=20, max_retries=1)
+        facts = {key: value for key, value in analysis.items() if key not in {"headline", "briefing", "answer"}}
+        response = client.responses.parse(
+            model=os.getenv("OPENAI_MODEL", "gpt-6-astra"),
+            store=False,
+            input=[
+                {"role": "system", "content": "Eres ARES, copiloto de una misión educativa a Marte. Responde en español claro y conciso. Usa únicamente los hechos calculados suministrados. Nunca declares que una misión es segura ni inventes terreno, clima o telemetría. Distingue simulación de medición."},
+                {"role": "user", "content": json.dumps({"facts": facts, "question": question or "Resume el riesgo y la mejor acción."}, ensure_ascii=False)},
+            ],
+            text_format=AresLanguage,
+        )
+        if response.output_parsed:
+            language = response.output_parsed
+            return {**analysis, "mode": "openai", "model": os.getenv("OPENAI_MODEL", "gpt-6-astra"), **language.model_dump()}
+    except Exception:
+        # The mission calculator remains available if credentials, quota or network fail.
+        pass
+    return analysis
 
 
 def astar(costs: list[list[float]], start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
@@ -137,12 +280,14 @@ def astar(costs: list[list[float]], start: tuple[int, int], goal: tuple[int, int
     raise ValueError("No traversable route")
 
 
-app = FastAPI(title="Mars Survival API", version="0.1.0", description="Transparent educational Mars expedition planning services")
+app = FastAPI(title="Mars Survival API", version="0.2.0", description="Transparent educational Mars expedition planning and ARES intelligence services")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
 
 
 @app.get("/api/health")
-def health(): return {"status": "ok", "service": "mars-survival", "version": app.version}
+def health():
+    return {"status": "ok", "service": "mars-survival", "version": app.version,
+            "features": {"ares": True, "generative_ai": bool(os.getenv("OPENAI_API_KEY"))}}
 
 
 @app.get("/api/regions")
@@ -180,6 +325,12 @@ def mission_evaluate(req: MissionRequest): return evaluate(req.route, req.config
 def mission_simulate(req: SimulationRequest):
     result = evaluate(req.route, req.config)
     return {"summary": result, "timeline": [{"fraction": i/(req.steps-1), "hours": result["duration_hours"]*i/(req.steps-1), "oxygen_remaining_kg": req.config.oxygen_kg-result["oxygen_used_kg"]*i/(req.steps-1), "energy_remaining_kwh": req.config.energy_kwh-result["energy_used_kwh"]*i/(req.steps-1)} for i in range(req.steps)]}
+
+
+@app.post("/api/ai/mission-copilot")
+def mission_copilot(req: AresRequest):
+    """Hybrid AI: auditable Monte Carlo facts plus optional structured language generation."""
+    return enrich_with_openai(analyze_uncertainty(req), req.question)
 
 
 LOCATIONS = [

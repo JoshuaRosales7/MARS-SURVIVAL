@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible problem in the mission platform.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Mars Survival. Do not include API keys or private mission data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Orbital 3D globe
+        - Terrain Lab
+        - 2D map
+        - Mission resources
+        - ARES copilot
+        - FastAPI
+        - Export or report
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Observe...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, operating system, Node/Python version, and commit when known.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Screenshots, console output, or a minimal mission configuration. Remove secrets first.
+  - type: checkboxes
+    id: integrity
+    attributes:
+      label: Data classification
+      options:
+        - label: I have stated whether the issue concerns measured data, a scenario assumption, or a visual proxy.
+          required: true
+

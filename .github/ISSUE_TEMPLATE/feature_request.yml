@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a mission, science, visualization, or platform improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Mission problem
+      description: What astronaut, scientist, educator, or developer problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed capability
+      description: Describe the user experience and expected outcome.
+    validations:
+      required: true
+  - type: dropdown
+    id: data
+    attributes:
+      label: Scientific data requirement
+      options:
+        - No new scientific data
+        - Existing configured source
+        - New public dataset
+        - Conceptual visualization only
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Dataset or reference
+      description: Include the authoritative source, coverage, resolution, and coordinate system when applicable.
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundaries
+      options:
+        - label: I understand that a visual proxy must be labeled and cannot be used as a measured safety input.
+          required: true
+

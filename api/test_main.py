@@ -22,3 +22,14 @@ def test_impossible_mission():
     response = client.post("/api/mission/evaluate", json={"route": route, "config": {"oxygen_kg": 0, "energy_kwh": 0}})
     assert response.status_code == 200
     assert response.json()["feasible_within_model"] is False
+
+def test_ares_is_reproducible_and_returns_actions():
+    route = {"coordinates": [{"lat": 0, "lon": 0}, {"lat": 0, "lon": 1}], "distance_km": 59.16, "strategy": "direct", "quality": "global-geometric", "terrain_evaluated": False, "warnings": []}
+    payload = {"route": route, "config": {"oxygen_kg": 1, "energy_kwh": 5}, "runs": 200, "question": "¿Qué debo mejorar?"}
+    first = client.post("/api/ai/mission-copilot", json=payload)
+    second = client.post("/api/ai/mission-copilot", json=payload)
+    assert first.status_code == 200
+    assert first.json()["survivalProbability"] == second.json()["survivalProbability"]
+    assert first.json()["runs"] == 200
+    assert first.json()["mode"] == "local"
+    assert first.json()["actions"]

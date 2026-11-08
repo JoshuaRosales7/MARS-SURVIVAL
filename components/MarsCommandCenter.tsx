@@ -1,148 +1,260 @@
 "use client";
 
-import { Canvas, type ThreeEvent } from "@react-three/fiber";
-import { Line, OrbitControls, Stars, useTexture } from "@react-three/drei";
-import { Activity, AlertTriangle, Box, CircleGauge, Database, Download, Gauge, Globe2, Layers3, Map, MapPin, Pause, Play, RotateCcw, Search, ShieldCheck, Timer, Users, Zap } from "lucide-react";
-import { LineChart, Line as ChartLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Activity, AlertTriangle, Box, ChevronRight, CircleGauge, Database, Download,
+  BrainCircuit, Check, Droplets, FlaskConical, Gauge, Globe2, Layers3, LoaderCircle,
+  Map, MapPin, Mountain, Navigation, Pause, Play, Radiation, RotateCcw, Search, Send,
+  ShieldCheck, Sparkles, Timer, Users, Zap,
+  type LucideIcon,
+} from "lucide-react";
+import { Area, AreaChart, LineChart, Line as ChartLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useEffect, useMemo, useState } from "react";
-import { Color, DoubleSide, SRGBColorSpace, Vector3 } from "three";
 import { jsPDF } from "jspdf";
+import AdvancedMarsGlobe from "@/components/AdvancedMarsGlobe";
+import TerrainLab3D from "@/components/TerrainLab3D";
 import { LANDMARKS, SOURCES, type Landmark } from "@/data/mars";
-import { buildRoute, coordinateToVector, evaluateMission, normalizeLon, routeDistance, type Coordinate, type Strategy } from "@/lib/mars";
+import {
+  buildRoute, evaluateMission, initialBearing, normalizeLon,
+  routeDistance, type Coordinate, type MissionConfig, type Strategy,
+} from "@/lib/mars";
+import { analyzeMissionRobustly, toApiPayload, type AresAnalysis } from "@/lib/ares";
+import { buildConceptualTerrain } from "@/lib/terrain";
 import { useMissionStore } from "@/lib/store";
 
 const TILE_BASE = process.env.NEXT_PUBLIC_MARS_TILE_BASE || "https://trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/default/default028mm";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TILE_WEST = `${TILE_BASE}/0/0/0.jpg`;
 const TILE_EAST = `${TILE_BASE}/0/0/1.jpg`;
 
+const STRATEGIES: { id: Strategy; name: string; description: string; tag: string }[] = [
+  { id: "direct", name: "Directa", description: "Arco geodésico mínimo", tag: "Mínima distancia" },
+  { id: "conservative", name: "Conservadora", description: "Desvío geométrico ilustrativo", tag: "DEM pendiente" },
+  { id: "science", name: "Ciencia", description: "Corredor con objetivo intermedio", tag: "Más cobertura" },
+  { id: "limited", name: "Recursos", description: "Ruta directa, validación estricta", tag: "Presupuesto" },
+];
+
+const PRESETS: { name: string; subtitle: string; values: Partial<MissionConfig> }[] = [
+  { name: "Exploración", subtitle: "2 personas · 18 h", values: { crew: 2, speedKmh: 4.5, oxygenKg: 18, energyKwh: 45, waterLiters: 12, maxHours: 18, scienceHours: 1.5, contingencyPercent: 15, reservePercent: 20 } },
+  { name: "Ciencia", subtitle: "3 personas · 30 h", values: { crew: 3, speedKmh: 3.5, oxygenKg: 42, energyKwh: 90, waterLiters: 24, maxHours: 30, scienceHours: 4, contingencyPercent: 20, reservePercent: 25 } },
+  { name: "Extendida", subtitle: "4 personas · 48 h", values: { crew: 4, speedKmh: 5, oxygenKg: 80, energyKwh: 140, waterLiters: 45, maxHours: 48, scienceHours: 6, contingencyPercent: 25, reservePercent: 30 } },
+];
+
 function fmt(value: number, digits = 1) { return Number.isFinite(value) ? value.toFixed(digits) : "—"; }
 function coords(p: Coordinate) { return `${Math.abs(p.lat).toFixed(3)}°${p.lat >= 0 ? "N" : "S"}  ${Math.abs(p.lon).toFixed(3)}°${p.lon >= 0 ? "E" : "W"}`; }
-
-function MarsSphere({ route, simPoint }: { route: Coordinate[]; simPoint: Coordinate }) {
-  const [west, east] = useTexture([TILE_WEST, TILE_EAST]);
-  west.colorSpace = SRGBColorSpace; east.colorSpace = SRGBColorSpace;
-  const { setPoint, setCursor, layers, base, destination } = useMissionStore();
-  const handlePoint = (event: ThreeEvent<PointerEvent | MouseEvent>, commit: boolean) => {
-    event.stopPropagation();
-    const p = event.point.clone().normalize();
-    const lat = 90 - Math.acos(Math.max(-1, Math.min(1, p.y))) * 180 / Math.PI;
-    const lon = normalizeLon(Math.atan2(p.z, -p.x) * 180 / Math.PI - 180);
-    (commit ? setPoint : setCursor)({ lat, lon });
-  };
-  const routeVectors = route.map((p) => new Vector3(...coordinateToVector(p, 2.035)));
-  return <group rotation={[0, -Math.PI / 2, 0]}>
-    <mesh onPointerMove={(e) => handlePoint(e, false)} onClick={(e) => handlePoint(e, true)}>
-      <sphereGeometry args={[2, 128, 64, 0, Math.PI]} />
-      <meshStandardMaterial map={west} roughness={0.96} metalness={0.02} />
-    </mesh>
-    <mesh scale={1.001} onPointerMove={(e) => handlePoint(e, false)} onClick={(e) => handlePoint(e, true)}>
-      <sphereGeometry args={[2, 128, 64, Math.PI, Math.PI]} />
-      <meshStandardMaterial map={east} roughness={0.96} side={DoubleSide} />
-    </mesh>
-    {layers.grid && <mesh scale={1.004}><sphereGeometry args={[2, 36, 18]} /><meshBasicMaterial color="#53b9dc" wireframe transparent opacity={0.15} /></mesh>}
-    {layers.routes && <Line points={routeVectors} color="#53b9dc" lineWidth={2.2} />}
-    {[{ p: base, c: "#46c69a" }, { p: destination, c: "#e98548" }].map(({ p, c }, i) => <mesh key={i} position={coordinateToVector(p, 2.07)}><sphereGeometry args={[0.045, 16, 16]} /><meshBasicMaterial color={c} /></mesh>)}
-    <mesh position={coordinateToVector(simPoint, 2.09)}><sphereGeometry args={[0.035, 12, 12]} /><meshBasicMaterial color="#f3f6fc" /></mesh>
-    <pointLight position={[3, 2, 4]} intensity={25} color={new Color("#f2b187")} />
-    <ambientLight intensity={0.35} color="#6987a8" />
-  </group>;
-}
-
-function GlobeView({ route, simPoint }: { route: Coordinate[]; simPoint: Coordinate }) {
-  return <div className="globe-view"><Canvas camera={{ position: [0, 0.2, 5.8], fov: 42 }} gl={{ antialias: true }}>
-    <color attach="background" args={["#050912"]} /><Stars radius={70} depth={38} count={1300} factor={2.2} fade speed={0.25} />
-    <MarsSphere route={route} simPoint={simPoint} /><OrbitControls enablePan={false} minDistance={2.45} maxDistance={9} dampingFactor={0.06} enableDamping />
-  </Canvas></div>;
-}
+function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 
 function MapView({ route, simPoint }: { route: Coordinate[]; simPoint: Coordinate }) {
   const { setPoint, setCursor, base, destination, layers } = useMissionStore();
   const project = (p: Coordinate) => ({ x: (normalizeLon(p.lon) + 180) / 360 * 1000, y: (90 - p.lat) / 180 * 500 });
-  const path = route.map((p, i) => `${i ? "L" : "M"}${project(p).x},${project(p).y}`).join(" ");
+  const paths = route.reduce<Coordinate[][]>((segments, point, index) => {
+    if (!index || Math.abs(normalizeLon(point.lon) - normalizeLon(route[index - 1].lon)) < 180) segments.at(-1)!.push(point);
+    else segments.push([point]);
+    return segments;
+  }, [[]]);
   const click = (e: React.MouseEvent<HTMLDivElement>, commit: boolean) => {
     const r = e.currentTarget.getBoundingClientRect();
-    const p = { lon: normalizeLon((e.clientX - r.left) / r.width * 360 - 180), lat: 90 - (e.clientY - r.top) / r.height * 180 };
+    const p = { lon: normalizeLon((e.clientX - r.left) / r.width * 360 - 180), lat: clamp(90 - (e.clientY - r.top) / r.height * 180, -90, 90) };
     (commit ? setPoint : setCursor)(p);
   };
   return <div className="map-view" onMouseMove={(e) => click(e, false)} onClick={(e) => click(e, true)}>
-    <div className="map-tiles"><img src={TILE_WEST} alt="Western hemisphere MOLA hillshade" /><img src={TILE_EAST} alt="Eastern hemisphere MOLA hillshade" /></div>
-    <svg viewBox="0 0 1000 500" preserveAspectRatio="none">
+    {layers.imagery && <div className="map-tiles"><img src={TILE_WEST} alt="Hemisferio occidental MOLA" /><img src={TILE_EAST} alt="Hemisferio oriental MOLA" /></div>}
+    <svg viewBox="0 0 1000 500" preserveAspectRatio="none" aria-label="Mapa equirectangular de Marte">
       {layers.grid && <g className="grid-lines">{[-60,-30,0,30,60].map(lat => <line key={lat} x1="0" x2="1000" y1={(90-lat)/180*500} y2={(90-lat)/180*500} />)}{[-120,-60,0,60,120].map(lon => <line key={lon} y1="0" y2="500" x1={(lon+180)/360*1000} x2={(lon+180)/360*1000} />)}</g>}
-      {layers.routes && <path d={path} className="route-path" />}
-      {[{p:base,c:"#46c69a"},{p:destination,c:"#e98548"},{p:simPoint,c:"#fff"}].map(({p,c},i)=><circle key={i} cx={project(p).x} cy={project(p).y} r={i===2?4:6} fill={c} />)}
+      {layers.routes && paths.map((segment, i) => <path key={i} d={segment.map((p, j) => `${j ? "L" : "M"}${project(p).x},${project(p).y}`).join(" ")} className="route-path" />)}
+      {layers.landmarks && LANDMARKS.map(p => <g className="landmark-dot" key={p.id}><circle cx={project(p).x} cy={project(p).y} r="3" /><title>{p.name}</title></g>)}
+      {[{p:base,c:"#63e6be"},{p:destination,c:"#ff8a5c"},{p:simPoint,c:"#fff"}].map(({p,c},i)=><circle key={i} cx={project(p).x} cy={project(p).y} r={i===2?4:6} fill={c} />)}
     </svg>
-    <span className="map-credit">NASA Mars Trek · MGS MOLA color hillshade · 463 m/px source product</span>
+    <span className="map-credit">NASA Mars Trek · MGS MOLA color hillshade · producto 463 m/px</span>
   </div>;
 }
 
-function Metric({ icon: Icon, label, value, tone = "blue" }: { icon: typeof Gauge; label: string; value: string; tone?: string }) {
-  return <div className={`metric ${tone}`}><Icon size={15}/><div><span>{label}</span><strong>{value}</strong></div></div>;
+function Metric({ icon: Icon, label, value, tone = "blue", detail }: { icon: LucideIcon; label: string; value: string; tone?: string; detail?: string }) {
+  return <div className={`metric ${tone}`}><span className="metric-icon"><Icon size={16}/></span><div><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div></div>;
 }
 
-function Range({ label, value, unit, min, max, step = 1, onChange }: { label: string; value: number; unit: string; min: number; max: number; step?: number; onChange: (v: number) => void }) {
-  return <label className="range"><span>{label}<b>{value}{unit}</b></span><input type="range" min={min} max={max} step={step} value={value} onChange={(e)=>onChange(Number(e.target.value))}/></label>;
+function Range({ label, value, unit, min, max, step = 1, onChange, hint }: { label: string; value: number; unit: string; min: number; max: number; step?: number; hint?: string; onChange: (v: number) => void }) {
+  return <label className="range"><span>{label}<b>{value}{unit}</b></span><input type="range" min={min} max={max} step={step} value={value} onChange={(e)=>onChange(Number(e.target.value))}/>{hint && <small>{hint}</small>}</label>;
+}
+
+function CoordinateEditor({ label, point, color, onChange }: { label: string; point: Coordinate; color: string; onChange: (p: Coordinate) => void }) {
+  const update = (key: "lat" | "lon", raw: string) => {
+    const number = Number(raw);
+    if (!Number.isFinite(number)) return;
+    onChange({ lat: key === "lat" ? clamp(number, -90, 90) : point.lat, lon: key === "lon" ? normalizeLon(number) : point.lon });
+  };
+  return <div className="coordinate-editor" style={{"--point-color": color} as React.CSSProperties}>
+    <div><i/><span>{label}</span><b>{point.name || "Punto personalizado"}</b></div>
+    <label>LAT<input type="number" min="-90" max="90" step="0.001" value={point.lat} onChange={e=>update("lat",e.target.value)} /></label>
+    <label>LON<input type="number" min="-180" max="180" step="0.001" value={point.lon} onChange={e=>update("lon",e.target.value)} /></label>
+  </div>;
 }
 
 export default function MarsCommandCenter() {
   const store = useMissionStore();
-  const [leftTab, setLeftTab] = useState<"plan"|"layers"|"places">("plan");
-  const [bottomTab, setBottomTab] = useState<"profile"|"routes"|"sources">("profile");
+  const [leftTab, setLeftTab] = useState<"plan"|"ares"|"layers"|"places">("plan");
+  const [bottomTab, setBottomTab] = useState<"profile"|"terrain"|"routes"|"sources">("profile");
   const [search, setSearch] = useState("");
-  const routes = useMemo(() => (["direct","conservative","science","limited"] as Strategy[]).map(strategy => ({ strategy, points: buildRoute(store.base, store.destination, strategy) })), [store.base, store.destination]);
+  const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [generativeAI, setGenerativeAI] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [aresLoading, setAresLoading] = useState(false);
+  const [serverAres, setServerAres] = useState<AresAnalysis | null>(null);
+  const [cinematic, setCinematic] = useState(true);
+  const routes = useMemo(() => STRATEGIES.map(({id}) => ({ strategy: id, points: buildRoute(store.base, store.destination, id) })), [store.base, store.destination]);
   const route = routes.find(r => r.strategy === store.strategy)!.points;
   const evaluation = useMemo(() => evaluateMission(route, store.config), [route, store.config]);
-  const simIndex = Math.min(route.length - 1, Math.floor(store.progress * (route.length - 1)));
-  const simPoint = route[simIndex] || store.base;
+  const terrainModel = useMemo(() => buildConceptualTerrain(route), [route]);
+  const localAres = useMemo(() => analyzeMissionRobustly(route, store.config, question), [route, store.config, question]);
+  const ares = serverAres || localAres;
+  const missionRoute = useMemo(() => store.config.returnRequired ? [...route, ...route.slice(0, -1).reverse()] : route, [route, store.config.returnRequired]);
+  const simIndex = Math.min(missionRoute.length - 1, Math.floor(store.progress * (missionRoute.length - 1)));
+  const simPoint = missionRoute[simIndex] || store.base;
+  const bearing = initialBearing(store.base, store.destination);
+  const phase = store.progress === 0 ? "Preparada" : store.progress >= 1 ? "Completada" : store.config.returnRequired && store.progress > 0.5 ? "Regreso" : "Travesía";
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 2500);
+    fetch(`${API_URL}/api/health`, { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { setApiOnline(true); setGenerativeAI(Boolean(data.features?.generative_ai)); }).catch(() => setApiOnline(false)).finally(() => window.clearTimeout(timer));
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, []);
+
+  useEffect(() => {
+    const requestedView = new URLSearchParams(window.location.search).get("view");
+    if (requestedView === "globe" || requestedView === "map" || requestedView === "terrain") {
+      store.setView(requestedView);
+      if (requestedView === "terrain") setBottomTab("terrain");
+    }
+  }, [store.setView]);
+
+  useEffect(() => { setServerAres(null); }, [route, store.config]);
+
   useEffect(() => {
     if (!store.running) return;
+    if (store.progress >= 1) { store.setRunning(false); return; }
     const id = window.setInterval(() => store.setProgress(Math.min(1, store.progress + 0.0025 * store.simSpeed)), 80);
-    if (store.progress >= 1) store.setRunning(false);
     return () => window.clearInterval(id);
   }, [store.running, store.progress, store.simSpeed, store.setProgress, store.setRunning]);
-  const timeline = Array.from({length: 13}, (_,i) => {
-    const f=i/12, hours=evaluation.durationHours*f;
-    return { h: Number(hours.toFixed(1)), oxygen: Math.max(0, store.config.oxygenKg - evaluation.oxygenUsedKg*f), energy: Math.max(0, store.config.energyKwh - evaluation.energyUsedKwh*f) };
+
+  const timeline = Array.from({length: 17}, (_,i) => {
+    const f=i/16, hours=evaluation.durationHours*f;
+    return {
+      h: Number(hours.toFixed(1)),
+      oxygen: Math.max(0, store.config.oxygenKg - evaluation.oxygenUsedKg*f),
+      energy: Math.max(0, store.config.energyKwh - evaluation.energyUsedKwh*f),
+      water: Math.max(0, store.config.waterLiters - evaluation.waterUsedLiters*f),
+    };
   });
+
   const chooseLandmark = (place: Landmark) => { store.setPoint(place); setLeftTab("plan"); };
-  const exportMission = async (type: "json"|"geojson"|"pdf") => {
-    const payload = { schema: "mars-survival/1.0", coordinateConvention: "planetocentric latitude, east-positive longitude normalized to -180..180", mission: { base: store.base, destination: store.destination, strategy: store.strategy, config: store.config }, result: evaluation, route, scientificLimitations: ["Global geometric route only", "No route-specific DEM profile loaded", "Resource rates are editable illustrative assumptions"] };
-    if (type === "pdf") { const doc = new jsPDF(); doc.setFillColor(8,13,23); doc.rect(0,0,210,297,"F"); doc.setTextColor(233,133,72); doc.setFontSize(22); doc.text("MARS SURVIVAL",18,24); doc.setTextColor(243,246,252); doc.setFontSize(11); ["Mission intelligence report",`Base: ${coords(store.base)}`,`Destination: ${coords(store.destination)}`,`Strategy: ${store.strategy}`,`Round-trip distance: ${fmt(evaluation.distanceKm)} km`,`Estimated duration: ${fmt(evaluation.durationHours)} h`,`Model result: ${evaluation.feasible?"FAVORABLE":"CONSTRAINT FAILED"}`,"",...evaluation.reasons,"","Scientific limitation: geometric global route; terrain safety not evaluated.","Sources: NASA Mars Trek WMTS, NASA PDS MOLA MEGDR, USGS Planetary Names."].forEach((line,i)=>doc.text(line,18,40+i*8)); doc.save("mars-survival-report.pdf"); return; }
-    const body = type === "geojson" ? { type:"FeatureCollection", crs:{type:"name",properties:{name:"IAU Mars 2000; planetocentric; longitude east-positive"}}, features:[{type:"Feature",properties:{strategy:store.strategy,quality:"global-geometric",distance_km:evaluation.distanceKm},geometry:{type:"LineString",coordinates:route.map(p=>[p.lon,p.lat])}}] } : payload;
-    const blob = new Blob([JSON.stringify(body,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`mars-survival.${type}`; a.click(); URL.revokeObjectURL(a.href);
+  const runAres = async () => {
+    setServerAres(null);
+    if (!apiOnline) return;
+    setAresLoading(true);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 25000);
+    try {
+      const response = await fetch(`${API_URL}/api/ai/mission-copilot`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify(toApiPayload(route, store.strategy, store.config, question)),
+      });
+      if (!response.ok) throw new Error("ARES unavailable");
+      setServerAres(await response.json() as AresAnalysis);
+    } catch {
+      setServerAres(null);
+    } finally {
+      window.clearTimeout(timer); setAresLoading(false);
+    }
   };
+  const exportMission = (type: "json"|"geojson"|"pdf") => {
+    const payload = { schema: "mars-survival/1.1", generatedAt: new Date().toISOString(), coordinateConvention: "planetocentric latitude, east-positive longitude normalized to -180..180", mission: { base: store.base, destination: store.destination, strategy: store.strategy, config: store.config }, result: evaluation, route, scientificLimitations: ["Global geometric route only", "No route-specific DEM profile loaded", "Radiation is a constant-rate scenario, not a forecast", "Resource rates are editable illustrative assumptions"] };
+    if (type === "pdf") {
+      const doc = new jsPDF(); doc.setFillColor(7,12,19); doc.rect(0,0,210,297,"F"); doc.setTextColor(255,138,92); doc.setFontSize(22); doc.text("MARS SURVIVAL",18,24); doc.setTextColor(243,246,252); doc.setFontSize(11);
+      ["Informe de inteligencia de misión",`Base: ${coords(store.base)}`,`Destino: ${coords(store.destination)}`,`Estrategia: ${store.strategy}`,`Distancia total: ${fmt(evaluation.distanceKm)} km`,`Duración estimada: ${fmt(evaluation.durationHours)} h`,`Oxígeno restante: ${fmt(evaluation.oxygenRemaining)} kg`,`Agua restante: ${fmt(evaluation.waterRemaining)} L`,`Radiación estimada: ${fmt(evaluation.radiationMsv,2)} mSv`,`Resultado: ${evaluation.feasible?"FAVORABLE EN EL MODELO":"RESTRICCIÓN INCUMPLIDA"}`,"",...evaluation.reasons,"","Límite: ruta geométrica global; seguridad de terreno no evaluada."].forEach((line,i)=>doc.text(line,18,40+i*8));
+      doc.save("mars-survival-report.pdf"); return;
+    }
+    const body = type === "geojson" ? { type:"FeatureCollection", crs:{type:"name",properties:{name:"IAU Mars 2000; planetocentric; longitude east-positive"}}, features:[{type:"Feature",properties:{strategy:store.strategy,quality:"global-geometric",distance_km:evaluation.distanceKm},geometry:{type:"LineString",coordinates:route.map(p=>[p.lon,p.lat])}}] } : payload;
+    const blob = new Blob([JSON.stringify(body,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`mars-survival.${type}`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+
   return <main className="app-shell">
     <header className="topbar">
-      <div className="brand"><span className="brand-mark"><Globe2 size={20}/></span><div><b>MARS SURVIVAL</b><small>EXPLORE FARTHER · RETURN SAFER</small></div></div>
-      <div className="location"><span>ACTIVE SECTOR</span><b>{coords(store.cursor)}</b></div>
-      <div className="view-switch"><button className={store.view==="globe"?"active":""} onClick={()=>store.setView("globe")}><Box size={15}/> Globe</button><button className={store.view==="map"?"active":""} onClick={()=>store.setView("map")}><Map size={15}/> Map</button></div>
-      <div className="source-state"><i/> SCIENCE SOURCES ONLINE</div>
-      <div className="export-menu"><Download size={16}/><select aria-label="Export mission" defaultValue="" onChange={(e)=>{if(e.target.value) exportMission(e.target.value as "json"|"geojson"|"pdf");e.target.value=""}}><option value="" disabled>Export mission</option><option value="pdf">PDF report</option><option value="json">Mission JSON</option><option value="geojson">Route GeoJSON</option></select></div>
+      <div className="brand"><span className="brand-mark"><Globe2 size={21}/></span><div><b>MARS SURVIVAL</b><small>PLANIFICA · EVALÚA · REGRESA</small></div></div>
+      <div className="mission-breadcrumb"><span>MS-01</span><ChevronRight size={13}/><b>{store.base.name || "BASE"}</b><ChevronRight size={13}/><strong>{store.destination.name || "DESTINO"}</strong></div>
+      <div className="location"><span>COORDENADA ACTIVA</span><b>{coords(store.cursor)}</b></div>
+      <div className="view-switch"><button className={store.view==="globe"?"active":""} onClick={()=>store.setView("globe")}><Box size={15}/> Globo</button><button className={store.view==="map"?"active":""} onClick={()=>store.setView("map")}><Map size={15}/> Mapa</button><button className={store.view==="terrain"?"active":""} onClick={()=>{store.setView("terrain");setBottomTab("terrain")}}><Mountain size={15}/> Terreno</button></div>
+      <div className={`source-state ${apiOnline ? "online" : "local"}`}><i/>{apiOnline === null ? "COMPROBANDO API" : apiOnline ? "API CONECTADA" : "MODO LOCAL"}</div>
+      <div className="export-menu"><Download size={16}/><select aria-label="Exportar misión" defaultValue="" onChange={(e)=>{if(e.target.value) exportMission(e.target.value as "json"|"geojson"|"pdf");e.target.value=""}}><option value="" disabled>Exportar</option><option value="pdf">Informe PDF</option><option value="json">Misión JSON</option><option value="geojson">Ruta GeoJSON</option></select></div>
     </header>
+
     <aside className="left-panel panel">
-      <nav className="tabs"><button className={leftTab==="plan"?"active":""} onClick={()=>setLeftTab("plan")}><MapPin size={15}/> Plan</button><button className={leftTab==="layers"?"active":""} onClick={()=>setLeftTab("layers")}><Layers3 size={15}/> Layers</button><button className={leftTab==="places"?"active":""} onClick={()=>setLeftTab("places")}><Search size={15}/> Places</button></nav>
+      <nav className="tabs" aria-label="Herramientas"><button className={leftTab==="plan"?"active":""} onClick={()=>setLeftTab("plan")}><MapPin size={15}/> Misión</button><button className={leftTab==="ares"?"active":""} onClick={()=>setLeftTab("ares")}><BrainCircuit size={15}/> ARES</button><button className={leftTab==="layers"?"active":""} onClick={()=>setLeftTab("layers")}><Layers3 size={15}/> Capas</button><button className={leftTab==="places"?"active":""} onClick={()=>setLeftTab("places")}><Search size={15}/> Lugares</button></nav>
       {leftTab==="plan" && <div className="panel-content">
-        <section><div className="section-head"><span>01</span><h3>Route definition</h3></div><div className="segmented"><button className={store.selection==="base"?"active":""} onClick={()=>store.setSelection("base")}>Set base</button><button className={store.selection==="destination"?"active":""} onClick={()=>store.setSelection("destination")}>Set target</button></div><div className="point-card base"><i/><div><span>BASE</span><b>{store.base.name || coords(store.base)}</b><small>{coords(store.base)}</small></div></div><div className="route-spine"/><div className="point-card target"><i/><div><span>DESTINATION</span><b>{store.destination.name || coords(store.destination)}</b><small>{coords(store.destination)}</small></div></div><p className="hint">Select “base” or “target”, then click anywhere on Mars.</p></section>
-        <section><div className="section-head"><span>02</span><h3>Route strategy</h3></div><div className="strategy-grid">{([ ["direct","Direct","Shortest geometric arc"], ["conservative","Conservative","Illustrative detour; DEM pending"], ["science","Science","Illustrative objective detour"], ["limited","Resource","Checks configured budgets"] ] as [Strategy,string,string][]).map(([id,title,sub])=><button key={id} className={store.strategy===id?"active":""} onClick={()=>store.setStrategy(id)}><b>{title}</b><small>{sub}</small></button>)}</div></section>
-        <section><div className="section-head"><span>03</span><h3>Mission constraints</h3></div><Range label="Crew" value={store.config.crew} unit="" min={1} max={6} onChange={v=>store.setConfig({crew:v})}/><Range label="Travel speed" value={store.config.speedKmh} unit=" km/h" min={1} max={15} step={0.5} onChange={v=>store.setConfig({speedKmh:v})}/><Range label="Oxygen" value={store.config.oxygenKg} unit=" kg" min={2} max={100} onChange={v=>store.setConfig({oxygenKg:v})}/><Range label="Energy" value={store.config.energyKwh} unit=" kWh" min={5} max={150} onChange={v=>store.setConfig({energyKwh:v})}/><Range label="Reserve" value={store.config.reservePercent} unit="%" min={5} max={50} onChange={v=>store.setConfig({reservePercent:v})}/></section>
+        <section><div className="section-head"><span>01</span><div><h3>Define la expedición</h3><small>Elige qué punto editar y toca el mapa</small></div></div>
+          <div className="segmented"><button className={store.selection==="base"?"active":""} onClick={()=>store.setSelection("base")}>Editar base</button><button className={store.selection==="destination"?"active":""} onClick={()=>store.setSelection("destination")}>Editar destino</button></div>
+          <CoordinateEditor label="BASE" point={store.base} color="#63e6be" onChange={p=>{store.setSelection("base");store.setPoint(p)}} />
+          <CoordinateEditor label="DESTINO" point={store.destination} color="#ff8a5c" onChange={p=>{store.setSelection("destination");store.setPoint(p)}} />
+        </section>
+        <section><div className="section-head"><span>02</span><div><h3>Objetivo de ruta</h3><small>Todos los corredores son geométricos</small></div></div><div className="strategy-grid">{STRATEGIES.map(item=><button key={item.id} className={store.strategy===item.id?"active":""} onClick={()=>store.setStrategy(item.id)}><span>{item.tag}</span><b>{item.name}</b><small>{item.description}</small></button>)}</div></section>
+        <section><div className="section-head"><span>03</span><div><h3>Perfil de misión</h3><small>Presets editables, no certificaciones</small></div></div><div className="preset-row">{PRESETS.map(p=><button key={p.name} onClick={()=>store.setConfig(p.values)}><b>{p.name}</b><small>{p.subtitle}</small></button>)}</div></section>
+        <section><div className="section-head"><span>04</span><div><h3>Recursos y límites</h3><small>Actualización instantánea del análisis</small></div></div>
+          <Range label="Tripulación" value={store.config.crew} unit="" min={1} max={8} onChange={v=>store.setConfig({crew:v})}/>
+          <Range label="Velocidad media" value={store.config.speedKmh} unit=" km/h" min={1} max={20} step={0.5} onChange={v=>store.setConfig({speedKmh:v})}/>
+          <Range label="Oxígeno" value={store.config.oxygenKg} unit=" kg" min={2} max={120} onChange={v=>store.setConfig({oxygenKg:v})}/>
+          <Range label="Energía" value={store.config.energyKwh} unit=" kWh" min={5} max={200} onChange={v=>store.setConfig({energyKwh:v})}/>
+          <Range label="Agua" value={store.config.waterLiters} unit=" L" min={2} max={80} onChange={v=>store.setConfig({waterLiters:v})}/>
+          <Range label="Reserva mínima" value={store.config.reservePercent} unit="%" min={5} max={50} onChange={v=>store.setConfig({reservePercent:v})}/>
+          <details className="advanced"><summary><Gauge size={14}/> Parámetros avanzados</summary>
+            <Range label="Tiempo científico" value={store.config.scienceHours} unit=" h" min={0} max={12} step={0.5} onChange={v=>store.setConfig({scienceHours:v})}/>
+            <Range label="Límite de misión" value={store.config.maxHours} unit=" h" min={4} max={72} onChange={v=>store.setConfig({maxHours:v})}/>
+            <Range label="Contingencia" value={store.config.contingencyPercent} unit="%" min={0} max={50} onChange={v=>store.setConfig({contingencyPercent:v})}/>
+            <Range label="Tasa de radiación" value={store.config.radiationMsvPerHour} unit=" mSv/h" min={0} max={0.1} step={0.005} onChange={v=>store.setConfig({radiationMsvPerHour:v})} hint="Escenario constante editable; no es meteorología espacial."/>
+            <Range label="Dosis máxima" value={store.config.maxRadiationMsv} unit=" mSv" min={0.1} max={5} step={0.1} onChange={v=>store.setConfig({maxRadiationMsv:v})}/>
+            <label className="check-row"><input type="checkbox" checked={store.config.returnRequired} onChange={e=>store.setConfig({returnRequired:e.target.checked})}/><span><b>Regreso obligatorio</b><small>Incluye el trayecto de vuelta en distancia y recursos</small></span></label>
+          </details>
+        </section>
       </div>}
-      {leftTab==="layers" && <div className="panel-content"><div className="section-head"><span>04</span><h3>Scientific layers</h3></div>{[{id:"imagery",name:"MOLA color hillshade",meta:"NASA Mars Trek · global"},{id:"routes",name:"Mission routes",meta:"Computed great-circle geometry"},{id:"landmarks",name:"Named locations",meta:"Curated documented features"},{id:"grid",name:"Coordinate grid",meta:"Planetocentric · +East"}].map(l=><label className="layer-row" key={l.id}><div><b>{l.name}</b><small>{l.meta}</small></div><input type="checkbox" checked={store.layers[l.id]} onChange={()=>store.toggleLayer(l.id)}/><i/></label>)}<div className="warning"><AlertTriangle size={16}/><p><b>Terrain analysis unavailable</b>Route-specific elevation, slope and obstacle assessment require a DEM profile. No values are synthesized.</p></div></div>}
-      {leftTab==="places" && <div className="panel-content"><div className="search"><Search size={15}/><input placeholder="Search Mars…" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="places">{LANDMARKS.filter(p=>p.name!.toLowerCase().includes(search.toLowerCase())).map(p=><button key={p.id} onClick={()=>chooseLandmark(p)}><span>{p.kind}</span><b>{p.name}</b><small>{p.description}</small><em>{coords(p)}</em></button>)}</div></div>}
+      {leftTab==="ares" && <div className="panel-content ares-panel">
+        <div className="ares-hero"><span><Sparkles size={15}/> COPILOTO DE MISIÓN</span><h2>ARES</h2><p>Anticipa fallos antes de que la tripulación salga de la base.</p><div className={`ares-mode ${ares.mode}`}><i/>{ares.mode === "openai" ? `IA · ${ares.model}` : generativeAI ? "MOTOR LOCAL · IA DISPONIBLE" : "MOTOR PROBABILÍSTICO LOCAL"}</div></div>
+        <section className="ares-probability"><div className="ares-ring" style={{"--probability": `${ares.survivalProbability * 3.6}deg`} as React.CSSProperties}><strong>{fmt(ares.survivalProbability,0)}%</strong><span>ÉXITO SIMULADO</span></div><div><span>{ares.headline.toUpperCase()}</span><b>{ares.runs.toLocaleString("es-GT")} escenarios</b><small>{ares.briefing}</small></div></section>
+        <section className="ares-section"><h3><CircleGauge size={15}/> Resiliencia por restricción</h3><div className="ares-constraints">{Object.entries(ares.constraintProbabilities).map(([key,value])=><div key={key} className={key===ares.criticalFactor?"critical":""}><span>{({oxygen:"Oxígeno",energy:"Energía",water:"Agua",radiation:"Radiación",time:"Tiempo"} as Record<string,string>)[key]}{key===ares.criticalFactor&&<em>LIMITANTE</em>}</span><b>{fmt(value,0)}%</b><i><u style={{width:`${value}%`}}/></i></div>)}</div><p className="confidence-band">P10–P90 de duración: <b>{fmt(ares.confidence.durationP10)}–{fmt(ares.confidence.durationP90)} h</b></p></section>
+        <section className="ares-section"><h3><Sparkles size={15}/> Plan de acción autónomo</h3>{ares.actions.length ? <div className="ares-actions">{ares.actions.map(action=><button key={action.id} onClick={()=>{store.setConfig(action.configPatch);setServerAres(null)}}><span><b>{action.label}</b><small>{action.rationale}</small></span><em>APLICAR</em></button>)}</div> : <div className="ares-clear"><Check size={16}/><span><b>Sin ajustes críticos</b><small>Los recursos conservan margen en el escenario P90.</small></span></div>}</section>
+        <section className="ares-section"><h3><BrainCircuit size={15}/> Pregunta a ARES</h3><form className="ares-query" onSubmit={e=>{e.preventDefault();void runAres()}}><textarea value={question} onChange={e=>{setQuestion(e.target.value);setServerAres(null)}} maxLength={500} placeholder="Ej.: ¿Qué cambio aumenta más la probabilidad de regreso?"/><button disabled={aresLoading} aria-label="Analizar misión">{aresLoading?<LoaderCircle className="spin" size={16}/>:<Send size={16}/>} ANALIZAR</button></form><div className="ares-answer"><span>ARES / {ares.mode === "openai" ? "GENERATIVO" : "LOCAL AUDITABLE"}</span><p>{ares.answer}</p></div></section>
+        <details className="ares-caveats"><summary>Qué sabe y qué no sabe ARES</summary><ul>{ares.caveats.map(item=><li key={item}>{item}</li>)}</ul></details>
+      </div>}
+      {leftTab==="layers" && <div className="panel-content"><div className="section-head"><span>05</span><div><h3>Capas científicas y 3D</h3><small>Controla datos y contexto orbital</small></div></div>{[{id:"imagery",name:"Relieve sombreado MOLA",meta:"NASA Mars Trek · cobertura global"},{id:"routes",name:"Corredor energético",meta:"Geodesia con pulsos de telemetría"},{id:"telemetry",name:"Balizas operacionales",meta:"Base, objetivo y posición simulada"},{id:"atmosphere",name:"Atmósfera óptica",meta:"Halo visual Fresnel · no es densidad medida"},{id:"orbits",name:"Contexto orbital",meta:"Órbitas y lunas como referencia visual"},{id:"landmarks",name:"Sitios de interés",meta:"Catálogo curado de ubicaciones"},{id:"grid",name:"Retícula planetocéntrica",meta:"Longitud positiva al este"}].map(l=><label className="layer-row" key={l.id}><div><b>{l.name}</b><small>{l.meta}</small></div><input type="checkbox" checked={store.layers[l.id]} onChange={()=>store.toggleLayer(l.id)}/><i/></label>)}<div className="warning"><AlertTriangle size={17}/><p><b>Visualización avanzada, no terreno 3D</b>La atmósfera, las órbitas y las balizas son contexto visual. No hay un DEM numérico conectado; pendiente, rocas y transitabilidad siguen como datos insuficientes.</p></div></div>}
+      {leftTab==="places" && <div className="panel-content"><div className="search"><Search size={15}/><input aria-label="Buscar lugares" placeholder="Buscar cráter, volcán o región…" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="places">{LANDMARKS.filter(p=>(`${p.name} ${p.kind}`).toLowerCase().includes(search.toLowerCase())).map(p=><button key={p.id} onClick={()=>chooseLandmark(p)}><span>{p.kind}</span><b>{p.name}</b><small>{p.description}</small><em>{coords(p)}</em></button>)}</div></div>}
     </aside>
+
     <section className="center-stage">
-      {store.view==="globe" ? <GlobeView route={route} simPoint={simPoint}/> : <MapView route={route} simPoint={simPoint}/>} 
-      <div className="stage-label"><span>GLOBAL OPS / MARS 2000</span><b>{store.view==="globe"?"ORBITAL GLOBE":"EQUIRECTANGULAR MAP"}</b></div>
-      <div className="quality-badge"><Database size={14}/><span>ROUTE QUALITY</span><b>GLOBAL GEOMETRIC</b></div>
-      <div className="sim-controls"><button onClick={()=>store.setRunning(!store.running)}>{store.running?<Pause size={17}/>:<Play size={17}/>}</button><button onClick={store.reset}><RotateCcw size={16}/></button><div><span>MISSION PROGRESS</span><div className="progress"><i style={{width:`${store.progress*100}%`}}/></div></div><select value={store.simSpeed} onChange={e=>store.setSimSpeed(Number(e.target.value))}><option value={1}>1×</option><option value={4}>4×</option><option value={12}>12×</option></select></div>
+      {store.view==="globe" ? <AdvancedMarsGlobe route={route} simPoint={simPoint} feasible={evaluation.feasible} cinematic={cinematic}/> : store.view==="terrain" ? <TerrainLab3D route={route} progress={store.progress}/> : <MapView route={route} simPoint={simPoint}/>}
+      <div className="stage-label"><span>{store.view==="terrain"?"CORREDOR LOCAL / MODELO CONCEPTUAL":"OPERACIONES GLOBALES / MARS 2000"}</span><b>{store.view==="globe"?"GLOBO ORBITAL":store.view==="terrain"?"LABORATORIO DE TERRENO 3D":"MAPA EQUIRECTANGULAR"}</b></div>
+      <div className="route-readout"><div><Navigation size={14}/><span>RUMBO INICIAL</span><b>{fmt(bearing,0)}°</b></div><div><Globe2 size={14}/><span>SOLO IDA</span><b>{fmt(evaluation.oneWayKm)} km</b></div><div><FlaskConical size={14}/><span>CIENCIA</span><b>{fmt(store.config.scienceHours)} h</b></div></div>
+      <div className={`quality-badge ${store.view==="terrain"?"conceptual":""}`}><Database size={14}/><span>{store.view==="terrain"?"CALIDAD DEL TERRENO":"CALIDAD DE RUTA"}</span><b>{store.view==="terrain"?"PROXY CONCEPTUAL":"GEOMETRÍA GLOBAL"}</b><small>{store.view==="terrain"?"Requiere DEM para medición":"Terreno no evaluado"}</small></div>
+      {store.view==="globe" && <button className={`cinematic-toggle ${cinematic?"active":""}`} onClick={()=>setCinematic(value=>!value)}><i/>{cinematic?"ÓRBITA CINEMÁTICA":"CÁMARA MANUAL"}</button>}
+      {store.view!=="terrain" && <div className="map-legend"><span><i className="base-dot"/>Base</span><span><i className="target-dot"/>Destino</span><span><i className="vehicle-dot"/>Tripulación</span></div>}
+      <div className="sim-controls"><button aria-label={store.running?"Pausar":"Iniciar"} onClick={()=>store.setRunning(!store.running)}>{store.running?<Pause size={17}/>:<Play size={17}/>}</button><button aria-label="Reiniciar" onClick={store.reset}><RotateCcw size={16}/></button><div><span>{phase} · {fmt(store.progress*100,0)}%</span><div className="progress"><i style={{width:`${store.progress*100}%`}}/></div></div><select aria-label="Velocidad de simulación" value={store.simSpeed} onChange={e=>store.setSimSpeed(Number(e.target.value))}><option value={1}>1×</option><option value={4}>4×</option><option value={12}>12×</option></select></div>
     </section>
-    <aside className="right-panel panel"><div className="panel-title"><span>MISSION ANALYSIS</span><i className={evaluation.feasible?"ok":"bad"}>{evaluation.feasible?"FAVORABLE":"CONSTRAINT FAILED"}</i></div><div className="metric-grid"><Metric icon={Globe2} label="ROUND TRIP" value={`${fmt(evaluation.distanceKm)} km`}/><Metric icon={Timer} label="DURATION" value={`${fmt(evaluation.durationHours)} h`}/><Metric icon={Zap} label="ENERGY LEFT" value={`${fmt(evaluation.energyRemaining)} kWh`} tone={evaluation.constraints.energy?"green":"red"}/><Metric icon={Activity} label="O₂ LEFT" value={`${fmt(evaluation.oxygenRemaining)} kg`} tone={evaluation.constraints.oxygen?"green":"red"}/></div>
-      <section className="analysis"><h3><CircleGauge size={16}/> Resource margins</h3>{[["Oxygen", evaluation.oxygenRemaining, store.config.oxygenKg],["Energy",evaluation.energyRemaining,store.config.energyKwh],["Time",store.config.maxHours-evaluation.durationHours,store.config.maxHours]].map(([name,left,total])=><div className="resource" key={String(name)}><span>{name}<b>{fmt(Number(left))}</b></span><div><i style={{width:`${Math.max(0,Math.min(100,Number(left)/Number(total)*100))}%`}}/></div></div>)}</section>
-      <section className="analysis"><h3><ShieldCheck size={16}/> Model assessment</h3><div className={`risk ${evaluation.feasible?"favorable":"high"}`}><span>COMPOSITE STATUS</span><b>{evaluation.feasible?"FAVORABLE WITHIN MODEL":"HIGH RESOURCE RISK"}</b><small>Terrain component: DATA INSUFFICIENT</small></div><ul className="reasons">{evaluation.reasons.map(r=><li key={r}>{r}</li>)}</ul></section>
-      <section className="analysis assumptions"><h3><Users size={16}/> Assumption register</h3><p>O₂ rate <b>{store.config.oxygenKgPerPersonHour} kg/person·h</b></p><p>Energy rate <b>{store.config.energyKwhPerHour} kWh/h</b></p><p>Contingency <b>{store.config.contingencyPercent}%</b></p><small>Editable planning hypotheses—not medical or operational certification.</small></section>
+
+    <aside className="right-panel panel"><div className="panel-title"><div><span>ANÁLISIS DE MISIÓN</span><small>Modelo determinista v1.1</small></div><i className={evaluation.feasible?"ok":"bad"}>{evaluation.feasible?"VIABLE EN MODELO":"REVISAR MISIÓN"}</i></div>
+      <div className="mission-score"><div className={evaluation.feasible?"score-ring pass":"score-ring fail"}><strong>{evaluation.feasible ? "OK" : "!"}</strong><span>RECURSOS</span></div><div><span>MARGEN LIMITANTE</span><b className={evaluation.limitingMarginPercent >= 0 ? "positive":"negative"}>{evaluation.limitingMarginPercent >= 0 ? "+":""}{fmt(evaluation.limitingMarginPercent,0)}%</b><small>Menor holgura entre todos los límites configurados</small></div></div>
+      <div className="metric-grid"><Metric icon={Globe2} label="DISTANCIA TOTAL" value={`${fmt(evaluation.distanceKm)} km`}/><Metric icon={Timer} label="DURACIÓN" value={`${fmt(evaluation.durationHours)} h`} tone={evaluation.constraints.time?"green":"red"}/><Metric icon={Activity} label="OXÍGENO" value={`${fmt(evaluation.oxygenRemaining)} kg`} tone={evaluation.constraints.oxygen?"green":"red"}/><Metric icon={Zap} label="ENERGÍA" value={`${fmt(evaluation.energyRemaining)} kWh`} tone={evaluation.constraints.energy?"green":"red"}/><Metric icon={Droplets} label="AGUA" value={`${fmt(evaluation.waterRemaining)} L`} tone={evaluation.constraints.water?"green":"red"}/><Metric icon={Radiation} label="RADIACIÓN" value={`${fmt(evaluation.radiationMsv,2)} mSv`} tone={evaluation.constraints.radiation?"green":"red"}/></div>
+      <section className="analysis"><h3><CircleGauge size={16}/> Márgenes normalizados</h3>{[
+        ["Oxígeno",evaluation.oxygenRemaining,store.config.oxygenKg,evaluation.constraints.oxygen],
+        ["Energía",evaluation.energyRemaining,store.config.energyKwh,evaluation.constraints.energy],
+        ["Agua",evaluation.waterRemaining,store.config.waterLiters,evaluation.constraints.water],
+        ["Tiempo",store.config.maxHours-evaluation.durationHours,store.config.maxHours,evaluation.constraints.time],
+        ["Radiación",store.config.maxRadiationMsv-evaluation.radiationMsv,store.config.maxRadiationMsv,evaluation.constraints.radiation],
+      ].map(([name,left,total,pass])=><div className="resource" key={String(name)}><span>{name}<b className={pass?"":"negative"}>{fmt(Number(left))}</b></span><div><i className={pass?"":"failed"} style={{width:`${clamp(Number(left)/Number(total)*100,0,100)}%`}}/></div></div>)}</section>
+      <section className="analysis"><h3><ShieldCheck size={16}/> Dictamen transparente</h3><div className={`risk ${evaluation.feasible?"favorable":"high"}`}><span>ESTADO COMPUESTO</span><b>{evaluation.feasible?"FAVORABLE DENTRO DEL MODELO":"RIESGO DE RECURSOS ALTO"}</b><small>Componente de terreno: DATOS INSUFICIENTES</small></div><ul className="reasons">{evaluation.reasons.map(r=><li key={r}>{r}</li>)}</ul></section>
+      <section className="analysis assumptions"><h3><Users size={16}/> Registro de hipótesis</h3><p>Consumo O₂ <b>{store.config.oxygenKgPerPersonHour} kg/persona·h</b></p><p>Consumo de agua <b>{store.config.waterLitersPerPersonDay} L/persona·día</b></p><p>Consumo energético <b>{store.config.energyKwhPerHour} kWh/h</b></p><p>Contingencia <b>{store.config.contingencyPercent}%</b></p><small>Valores editables para comparar escenarios; no son certificación médica ni operacional.</small></section>
     </aside>
-    <section className="bottom-panel panel"><nav className="bottom-tabs"><button className={bottomTab==="profile"?"active":""} onClick={()=>setBottomTab("profile")}>Resource profile</button><button className={bottomTab==="routes"?"active":""} onClick={()=>setBottomTab("routes")}>Route comparison</button><button className={bottomTab==="sources"?"active":""} onClick={()=>setBottomTab("sources")}>Scientific metadata</button></nav>
-      {bottomTab==="profile" && <div className="chart-wrap"><div className="chart-legend"><span className="oxygen">Oxygen kg</span><span className="energy">Energy kWh</span><em>Elevation profile unavailable — DEM not loaded</em></div><ResponsiveContainer width="100%" height="100%"><LineChart data={timeline} margin={{top:8,right:10,bottom:0,left:-15}}><XAxis dataKey="h" stroke="#60748c" tick={{fontSize:10}}/><YAxis stroke="#60748c" tick={{fontSize:10}}/><Tooltip contentStyle={{background:"#111c2a",border:"1px solid #30445c",fontSize:11}}/><ChartLine dataKey="oxygen" stroke="#53b9dc" dot={false} strokeWidth={2}/><ChartLine dataKey="energy" stroke="#e98548" dot={false} strokeWidth={2}/></LineChart></ResponsiveContainer></div>}
-      {bottomTab==="routes" && <div className="route-table"><div className="table-head"><span>STRATEGY</span><span>ONE-WAY</span><span>EST. TIME</span><span>QUALITY</span><span>STATUS</span></div>{routes.map(r=>{const ev=evaluateMission(r.points,store.config);return <button key={r.strategy} className={store.strategy===r.strategy?"active":""} onClick={()=>store.setStrategy(r.strategy)}><b>{r.strategy.toUpperCase()}</b><span>{fmt(routeDistance(r.points))} km</span><span>{fmt(ev.durationHours)} h</span><span>Global geometric</span><em className={ev.feasible?"ok":"bad"}>{ev.feasible?"Pass":"Fail"}</em></button>})}</div>}
-      {bottomTab==="sources" && <div className="sources">{SOURCES.map(s=><a key={s.name} href={s.url} target="_blank" rel="noreferrer"><Database size={17}/><div><b>{s.name}</b><span>{s.role}</span></div><em>{s.status}</em></a>)}<div className="convention"><b>COORDINATE CONVENTION</b><span>Mars 2000 · planetocentric latitude · east-positive longitude · UI normalized −180° to +180°</span></div></div>}
+
+    <section className="bottom-panel panel"><nav className="bottom-tabs"><button className={bottomTab==="profile"?"active":""} onClick={()=>setBottomTab("profile")}>Perfil de recursos</button><button className={bottomTab==="terrain"?"active":""} onClick={()=>setBottomTab("terrain")}>Perfil de terreno</button><button className={bottomTab==="routes"?"active":""} onClick={()=>setBottomTab("routes")}>Comparar rutas</button><button className={bottomTab==="sources"?"active":""} onClick={()=>setBottomTab("sources")}>Proveniencia científica</button></nav>
+      {bottomTab==="profile" && <div className="chart-wrap"><div className="chart-legend"><span className="oxygen">Oxígeno kg</span><span className="energy">Energía kWh</span><span className="water">Agua L</span><em>Perfil de elevación no disponible · DEM sin montar</em></div><ResponsiveContainer width="100%" height="100%"><LineChart data={timeline} margin={{top:8,right:10,bottom:0,left:-15}}><XAxis dataKey="h" stroke="#60748c" tick={{fontSize:10}}/><YAxis stroke="#60748c" tick={{fontSize:10}}/><Tooltip contentStyle={{background:"#0d1723",border:"1px solid #31465c",fontSize:11,borderRadius:8}} labelFormatter={v=>`${v} h`}/><ChartLine dataKey="oxygen" name="Oxígeno" stroke="#66d7ed" dot={false} strokeWidth={2}/><ChartLine dataKey="energy" name="Energía" stroke="#ff8a5c" dot={false} strokeWidth={2}/><ChartLine dataKey="water" name="Agua" stroke="#8b9cff" dot={false} strokeWidth={2}/></LineChart></ResponsiveContainer></div>}
+      {bottomTab==="terrain" && <div className="chart-wrap terrain-profile-chart"><div className="chart-legend"><span className="terrain-height">Relieve proxy m</span><span className="terrain-slope">Pendiente conceptual °</span><em>Modelo reproducible · no procede de MOLA/HRSC</em></div><ResponsiveContainer width="100%" height="100%"><AreaChart data={terrainModel.profile.map(point=>({km:Number(point.distanceKm.toFixed(2)),elevation:Number(point.elevationM.toFixed(1)),slope:Number(point.slopeDeg.toFixed(1)),risk:point.risk}))} margin={{top:8,right:18,bottom:0,left:-10}}><defs><linearGradient id="terrainFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ff8a5c" stopOpacity={.55}/><stop offset="100%" stopColor="#ff8a5c" stopOpacity={.04}/></linearGradient></defs><XAxis dataKey="km" stroke="#60748c" tick={{fontSize:10}} unit=" km"/><YAxis yAxisId="elevation" stroke="#a6735c" tick={{fontSize:10}}/><YAxis yAxisId="slope" orientation="right" stroke="#f3b36c" tick={{fontSize:10}} unit="°"/><Tooltip contentStyle={{background:"#0d1723",border:"1px solid #31465c",fontSize:11,borderRadius:8}} labelFormatter={v=>`${v} km`}/><Area yAxisId="elevation" dataKey="elevation" name="Relieve proxy" stroke="#ff8a5c" fill="url(#terrainFill)" strokeWidth={2}/><ChartLine yAxisId="slope" dataKey="slope" name="Pendiente conceptual" stroke="#f3b36c" dot={false} strokeWidth={1.5}/></AreaChart></ResponsiveContainer></div>}
+      {bottomTab==="routes" && <div className="route-table"><div className="table-head"><span>ESTRATEGIA</span><span>SOLO IDA</span><span>DURACIÓN</span><span>CALIDAD</span><span>ESTADO</span></div>{routes.map(r=>{const ev=evaluateMission(r.points,store.config);const meta=STRATEGIES.find(s=>s.id===r.strategy)!;return <button key={r.strategy} className={store.strategy===r.strategy?"active":""} onClick={()=>store.setStrategy(r.strategy)}><b>{meta.name}<small>{meta.description}</small></b><span>{fmt(routeDistance(r.points))} km</span><span>{fmt(ev.durationHours)} h</span><span>Geométrica global</span><em className={ev.feasible?"ok":"bad"}>{ev.feasible?"Cumple":"Falla"}</em></button>})}</div>}
+      {bottomTab==="sources" && <div className="sources">{SOURCES.map(s=><a key={s.name} href={s.url} target="_blank" rel="noreferrer"><Database size={17}/><div><b>{s.name}</b><span>{s.role}</span></div><em>{s.status==="live"?"VISUAL":"CATÁLOGO"}</em></a>)}<div className="convention"><b>CONVENCIÓN DE COORDENADAS</b><span>Mars 2000 · latitud planetocéntrica · longitud positiva al este · interfaz normalizada de −180° a +180°</span></div></div>}
     </section>
   </main>;
 }
