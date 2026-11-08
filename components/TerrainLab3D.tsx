@@ -43,7 +43,7 @@ function TerrainMesh({ seed, lengthKm, widthKm, exaggeration, riskOverlay, conto
   seed: number; lengthKm: number; widthKm: number; exaggeration: number; riskOverlay: boolean; contours: boolean;
 }) {
   const geometry = useMemo(() => {
-    const result = new PlaneGeometry(10, 6, 144, 86);
+    const result = new PlaneGeometry(12, 7.2, 168, 100);
     result.rotateX(-Math.PI / 2);
     const positions = result.attributes.position;
     const colors: number[] = [];
@@ -65,7 +65,7 @@ function TerrainMesh({ seed, lengthKm, widthKm, exaggeration, riskOverlay, conto
 
   return <group>
     <mesh position={[0, baseY - .16, 0]} receiveShadow>
-      <boxGeometry args={[10.12, .32, 6.12]} />
+      <boxGeometry args={[12.12, .32, 7.32]} />
       <meshStandardMaterial color="#211916" roughness={1} metalness={0} />
     </mesh>
     <mesh geometry={geometry} receiveShadow castShadow>
@@ -209,9 +209,9 @@ function CameraRig({ preset }: { preset: CameraPreset }) {
   const previousPreset = useRef(preset);
   const moving = useRef(false);
   const destinations = useMemo<Record<CameraPreset, Vector3>>(() => ({
-    perspective: new Vector3(6.7, 5.4, 7.8),
-    top: new Vector3(0, 11.8, .02),
-    surface: new Vector3(-5.6, 1.45, 3.5),
+    perspective: new Vector3(4.9, 3.5, 5.8),
+    top: new Vector3(0, 9.15, .02),
+    surface: new Vector3(-4.7, 1.05, 2.3),
   }), []);
   useFrame((_, delta) => {
     if (previousPreset.current !== preset) { previousPreset.current = preset; moving.current = true; }
@@ -251,7 +251,7 @@ function CorridorScene({ route, progress, exaggeration, riskOverlay, contours, c
     <hemisphereLight intensity={.62} color="#b6c4ce" groundColor="#3d2118" />
     <ambientLight intensity={.18} color="#758087" />
     <CameraRig preset={cameraPreset} />
-    <OrbitControls target={[0, 0, 0]} enableDamping dampingFactor={.065} minDistance={3.5} maxDistance={18} minPolarAngle={.08} maxPolarAngle={Math.PI / 2.03} enablePan panSpeed={.55} />
+    <OrbitControls target={[0, 0, 0]} enableDamping dampingFactor={.065} minDistance={2.7} maxDistance={15} minPolarAngle={.08} maxPolarAngle={Math.PI / 2.03} enablePan panSpeed={.55} />
     <AdaptiveDpr pixelated />
   </>;
 }
@@ -265,7 +265,7 @@ export default function TerrainLab3D({ route, progress }: { route: Coordinate[];
   const currentPoint = model.profile[Math.min(model.profile.length - 1, Math.floor(progress * (model.profile.length - 1)))];
 
   return <div className="terrain-lab-view">
-    <Canvas camera={{ position: [6.7, 5.4, 7.8], fov: 40, near: .08, far: 90 }} dpr={[1, 1.75]} shadows gl={{ antialias: true, powerPreference: "high-performance", alpha: false }}>
+    <Canvas camera={{ position: [4.9, 3.5, 5.8], fov: 38, near: .08, far: 90 }} dpr={[1, 1.75]} shadows gl={{ antialias: true, powerPreference: "high-performance", alpha: false }}>
       <CorridorScene route={route} progress={progress} exaggeration={exaggeration} riskOverlay={riskOverlay} contours={contours} cameraPreset={cameraPreset} />
     </Canvas>
     <div className="terrain-vignette" />
