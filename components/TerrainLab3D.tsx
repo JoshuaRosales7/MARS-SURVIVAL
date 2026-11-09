@@ -4,6 +4,7 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber"
 import { AdaptiveDpr, Html, Line, OrbitControls, useTexture } from "@react-three/drei";
 import { useMemo, useRef, useState } from "react";
 import { Color, DoubleSide, Group, Mesh, SRGBColorSpace, Vector3 } from "three";
+import { SlidersHorizontal, X } from "lucide-react";
 import { normalizeLon, routeDistance, type Coordinate } from "@/lib/mars";
 import { LANDMARKS } from "@/data/mars";
 import { useMissionStore } from "@/lib/store";
@@ -161,6 +162,20 @@ function TerrainRoute({ route, progress, elevation }: { route: Coordinate[]; pro
   </group>;
 }
 
+function CursorIndicator({ point, elevation }: { point: Coordinate; elevation: number }) {
+  const position = coordinateToTerrain(point, elevation);
+  return <group position={position}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[.075, .105, 28]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={.9} side={DoubleSide} depthWrite={false} />
+    </mesh>
+    <mesh position={[0, .09, 0]}>
+      <cylinderGeometry args={[.006, .006, .18, 8]} />
+      <meshBasicMaterial color="#ffffff" transparent opacity={.68} />
+    </mesh>
+  </group>;
+}
+
 function CameraRig({ preset, routeTarget }: { preset: CameraPreset; routeTarget: Vector3 }) {
   const { camera } = useThree();
   const previous = useRef(preset);
@@ -181,9 +196,10 @@ function CameraRig({ preset, routeTarget }: { preset: CameraPreset; routeTarget:
   return null;
 }
 
-function GlobalTerrainScene({ route, progress, exaggeration, grid, contours, colorized, landmarks, preset, onHover, onSelect }: {
+function GlobalTerrainScene({ route, progress, cursor, exaggeration, grid, contours, colorized, landmarks, preset, onHover, onSelect }: {
   route: Coordinate[];
   progress: number;
+  cursor: Coordinate;
   exaggeration: number;
   grid: boolean;
   contours: boolean;
@@ -201,6 +217,7 @@ function GlobalTerrainScene({ route, progress, exaggeration, grid, contours, col
     {grid && <GeographicGrid elevation={overlayElevation} />}
     {landmarks && <LandmarkLayer elevation={overlayElevation + .025} onSelect={onSelect} />}
     <TerrainRoute route={route} progress={progress} elevation={overlayElevation + .015} />
+    <CursorIndicator point={cursor} elevation={overlayElevation + .045} />
     <directionalLight position={[-5, 8, 5]} intensity={3.4} color="#f5d0b2" castShadow />
     <hemisphereLight intensity={.58} color="#afc0cb" groundColor="#321c17" />
     <ambientLight intensity={.18} color="#7d8589" />
@@ -212,11 +229,12 @@ function GlobalTerrainScene({ route, progress, exaggeration, grid, contours, col
 
 export default function TerrainLab3D({ route, progress }: { route: Coordinate[]; progress: number }) {
   const [exaggeration, setExaggeration] = useState(1.25);
-  const [grid, setGrid] = useState(true);
+  const [grid, setGrid] = useState(false);
   const [contours, setContours] = useState(false);
   const [colorized, setColorized] = useState(true);
-  const [landmarks, setLandmarks] = useState(true);
+  const [landmarks, setLandmarks] = useState(false);
   const [preset, setPreset] = useState<CameraPreset>("oblique");
+  const [hudOpen, setHudOpen] = useState(false);
   const distanceKm = routeDistance(route);
   const { cursor, selection, setCursor, setPoint } = useMissionStore();
 
@@ -227,6 +245,7 @@ export default function TerrainLab3D({ route, progress }: { route: Coordinate[];
       <GlobalTerrainScene
         route={route}
         progress={progress}
+        cursor={cursor}
         exaggeration={exaggeration}
         grid={grid}
         contours={contours}
@@ -239,41 +258,36 @@ export default function TerrainLab3D({ route, progress }: { route: Coordinate[];
     </Canvas>
 
     <div className="terrain-vignette" />
-    <div className="global-terrain-title">
-      <span>SUPERFICIE EQUIRECTANGULAR · 360° × 180°</span>
-      <b>TERRENO GLOBAL 3D DE MARTE</b>
-      <small>Arrastra para inclinar · rueda para acercar · botón derecho para desplazar</small>
-    </div>
 
-    <div className="terrain-camera-presets" role="group" aria-label="Vista del terreno">
-      {(["oblique", "top", "low", "route"] as CameraPreset[]).map(value => <button key={value} className={preset === value ? "active" : ""} onClick={() => setPreset(value)} aria-pressed={preset === value}>{value === "oblique" ? "3D" : value === "top" ? "Cenital" : value === "low" ? "Rasante" : "Ruta"}</button>)}
-    </div>
+    <button className={`terrain-tools-toggle ${hudOpen ? "open" : ""}`} onClick={() => setHudOpen(value => !value)} aria-expanded={hudOpen}>
+      {hudOpen ? <X size={15} /> : <SlidersHorizontal size={15} />}
+      {hudOpen ? "Cerrar" : "Herramientas"}
+    </button>
 
-    <div className="global-terrain-controls terrain-surface-controls">
-      <label>RELIEVE <b>{exaggeration.toFixed(2)}×</b><input type="range" min=".35" max="2.4" step=".05" value={exaggeration} onChange={event => setExaggeration(Number(event.target.value))} /></label>
-      <button className={grid ? "active" : ""} onClick={() => setGrid(value => !value)} aria-pressed={grid}><i />Coordenadas</button>
-      <button className={contours ? "active" : ""} onClick={() => setContours(value => !value)} aria-pressed={contours}><i />Malla</button>
-    </div>
+    {hudOpen && <div className="terrain-tools-panel">
+      <div className="terrain-tools-heading"><div><span>CONTROL DE TERRENO</span><b>MOLA GLOBAL 3D</b></div><button onClick={() => setHudOpen(false)} aria-label="Cerrar herramientas"><X size={15} /></button></div>
 
-    <div className="terrain-layer-controls" role="group" aria-label="Capas científicas">
-      <button className={colorized ? "active" : ""} onClick={() => setColorized(value => !value)} aria-pressed={colorized}><i />Color MOLA</button>
-      <button className={landmarks ? "active" : ""} onClick={() => setLandmarks(value => !value)} aria-pressed={landmarks}><i />Lugares</button>
-    </div>
+      <section><span>VISTA</span><div className="terrain-tools-grid cameras">
+        {(["oblique", "top", "low", "route"] as CameraPreset[]).map(value => <button key={value} className={preset === value ? "active" : ""} onClick={() => setPreset(value)} aria-pressed={preset === value}>{value === "oblique" ? "3D" : value === "top" ? "Cenital" : value === "low" ? "Rasante" : "Ruta"}</button>)}
+      </div></section>
 
-    <div className="terrain-coordinate-hud">
-      <span>COORDENADA DEL CURSOR</span>
-      <b>{Math.abs(cursor.lat).toFixed(3)}°{cursor.lat >= 0 ? "N" : "S"} · {Math.abs(cursor.lon).toFixed(3)}°{cursor.lon >= 0 ? "E" : "O"}</b>
-      <small>Clic para fijar {selection === "base" ? "la base" : "el destino"}</small>
-    </div>
+      <section><span>RELIEVE <b>{exaggeration.toFixed(2)}×</b></span><input className="terrain-tools-range" type="range" min=".35" max="2.4" step=".05" value={exaggeration} onChange={event => setExaggeration(Number(event.target.value))} /></section>
 
-    <div className="global-terrain-stats">
-      <div><span>COBERTURA</span><b>Marte completo</b></div>
-      <div><span>DEM FUENTE</span><b>463 m/px</b></div>
-      <div><span>ALTIMETRÍA</span><b>MGS · MOLA</b></div>
-      <div><span>RUTA ACTIVA</span><b>{distanceKm.toFixed(0)} km</b></div>
-    </div>
+      <section><span>CAPAS</span><div className="terrain-tools-grid layers">
+        <button className={colorized ? "active" : ""} onClick={() => setColorized(value => !value)} aria-pressed={colorized}>Color MOLA</button>
+        <button className={grid ? "active" : ""} onClick={() => setGrid(value => !value)} aria-pressed={grid}>Coordenadas</button>
+        <button className={contours ? "active" : ""} onClick={() => setContours(value => !value)} aria-pressed={contours}>Malla</button>
+        <button className={landmarks ? "active" : ""} onClick={() => setLandmarks(value => !value)} aria-pressed={landmarks}>Lugares</button>
+      </div></section>
 
-    <div className="mola-elevation-legend" aria-label="Escala de elevación MOLA"><span>−8 km</span><i /><span>+14 km</span><small>ELEVACIÓN MOLA</small></div>
-    <a className="global-terrain-source" href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m" target="_blank" rel="noreferrer">USGS / NASA · DEM MOLA ↗</a>
+      <div className="terrain-tools-summary"><div><span>COBERTURA</span><b>Marte completo</b></div><div><span>DEM</span><b>463 m/px</b></div><div><span>RUTA</span><b>{distanceKm.toFixed(0)} km</b></div></div>
+      <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m" target="_blank" rel="noreferrer">Fuente USGS / NASA MOLA ↗</a>
+    </div>}
+
+    <div className="terrain-coordinate-chip">
+      <i />
+      <b>{Math.abs(cursor.lat).toFixed(2)}°{cursor.lat >= 0 ? "N" : "S"} · {Math.abs(cursor.lon).toFixed(2)}°{cursor.lon >= 0 ? "E" : "O"}</b>
+      <span>Clic: {selection === "base" ? "base" : "destino"}</span>
+    </div>
   </div>;
 }
