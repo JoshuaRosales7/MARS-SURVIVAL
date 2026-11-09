@@ -1,17 +1,19 @@
 "use client";
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, Line, OrbitControls, useTexture } from "@react-three/drei";
+import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { AdaptiveDpr, Html, Line, OrbitControls, useTexture } from "@react-three/drei";
 import { useMemo, useRef, useState } from "react";
 import { Color, DoubleSide, Group, Mesh, SRGBColorSpace, Vector3 } from "three";
 import { normalizeLon, routeDistance, type Coordinate } from "@/lib/mars";
+import { LANDMARKS } from "@/data/mars";
+import { useMissionStore } from "@/lib/store";
 
 const COLOR_TEXTURE = "/data/mars-mola-topography.jpg";
 const HEIGHT_TEXTURE = "/data/mars-mola-heightmap.png";
 const MAP_WIDTH = 14;
 const MAP_HEIGHT = 7;
 
-type CameraPreset = "oblique" | "top" | "low";
+type CameraPreset = "oblique" | "top" | "low" | "route";
 
 function coordinateToTerrain(point: Coordinate, elevation: number) {
   return new Vector3(
@@ -21,7 +23,21 @@ function coordinateToTerrain(point: Coordinate, elevation: number) {
   );
 }
 
-function TerrainSurface({ exaggeration, contours }: { exaggeration: number; contours: boolean }) {
+function terrainToCoordinate(point: Vector3): Coordinate {
+  return {
+    lat: Math.max(-90, Math.min(90, -point.z / (MAP_HEIGHT / 2) * 90)),
+    lon: normalizeLon(point.x / (MAP_WIDTH / 2) * 180),
+  };
+}
+
+function TerrainSurface({ exaggeration, contours, colorized, onHover, onSelect }: {
+  exaggeration: number;
+  contours: boolean;
+  colorized: boolean;
+  onHover: (point: Coordinate) => void;
+  onSelect: (point: Coordinate) => void;
+}) {
+  const lastHover = useRef(0);
   const [colorMap, heightMap] = useTexture([COLOR_TEXTURE, HEIGHT_TEXTURE]);
   colorMap.colorSpace = SRGBColorSpace;
   colorMap.anisotropy = 12;
@@ -34,10 +50,23 @@ function TerrainSurface({ exaggeration, contours }: { exaggeration: number; cont
       <boxGeometry args={[MAP_WIDTH + .12, .32, MAP_HEIGHT + .12]} />
       <meshStandardMaterial color="#171413" roughness={1} />
     </mesh>
-    <mesh castShadow receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[MAP_WIDTH, MAP_HEIGHT, 320, 160]} />
+    <mesh
+      castShadow
+      receiveShadow
+      rotation={[-Math.PI / 2, 0, 0]}
+      onPointerMove={(event: ThreeEvent<PointerEvent>) => {
+        event.stopPropagation();
+        const now = performance.now();
+        if (now - lastHover.current < 45) return;
+        lastHover.current = now;
+        onHover(terrainToCoordinate(event.point));
+      }}
+      onClick={(event: ThreeEvent<MouseEvent>) => { event.stopPropagation(); onSelect(terrainToCoordinate(event.point)); }}
+    >
+      <planeGeometry args={[MAP_WIDTH, MAP_HEIGHT, 384, 192]} />
       <meshStandardMaterial
-        map={colorMap}
+        map={colorized ? colorMap : null}
+        color={colorized ? "#ffffff" : "#986048"}
         displacementMap={heightMap}
         displacementScale={scale}
         displacementBias={bias}
@@ -61,6 +90,22 @@ function TerrainSurface({ exaggeration, contours }: { exaggeration: number; cont
       />
     </mesh>}
   </group>;
+}
+
+function LandmarkLayer({ elevation, onSelect }: { elevation: number; onSelect: (point: Coordinate) => void }) {
+  return <group>{LANDMARKS.map(landmark => {
+    const position = coordinateToTerrain(landmark, elevation);
+    return <group key={landmark.id} position={position}>
+      <mesh onClick={event => { event.stopPropagation(); onSelect(landmark); }}>
+        <cylinderGeometry args={[.018, .032, .16, 10]} />
+        <meshBasicMaterial color="#e7be91" />
+      </mesh>
+      <mesh position={[0, .1, 0]}><sphereGeometry args={[.038, 12, 8]} /><meshBasicMaterial color="#f1c28e" /></mesh>
+      <Html position={[0, .19, 0]} center distanceFactor={9} style={{ pointerEvents: "none" }}>
+        <div className="terrain-landmark-label"><b>{landmark.name}</b><span>{landmark.kind}</span></div>
+      </Html>
+    </group>;
+  })}</group>;
 }
 
 function GeographicGrid({ elevation }: { elevation: number }) {
@@ -116,7 +161,7 @@ function TerrainRoute({ route, progress, elevation }: { route: Coordinate[]; pro
   </group>;
 }
 
-function CameraRig({ preset }: { preset: CameraPreset }) {
+function CameraRig({ preset, routeTarget }: { preset: CameraPreset; routeTarget: Vector3 }) {
   const { camera } = useThree();
   const previous = useRef(preset);
   const moving = useRef(false);
@@ -124,35 +169,43 @@ function CameraRig({ preset }: { preset: CameraPreset }) {
     oblique: new Vector3(0, 6.6, 8.7),
     top: new Vector3(0, 11.7, .01),
     low: new Vector3(0, 2.8, 6.6),
-  }), []);
+    route: routeTarget.clone().add(new Vector3(0, 3.2, 4.4)),
+  }), [routeTarget]);
   useFrame((_, delta) => {
     if (previous.current !== preset) { previous.current = preset; moving.current = true; }
     if (!moving.current) return;
     camera.position.lerp(positions[preset], 1 - Math.exp(-delta * 4.5));
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(preset === "route" ? routeTarget : new Vector3(0, 0, 0));
     if (camera.position.distanceTo(positions[preset]) < .03) moving.current = false;
   });
   return null;
 }
 
-function GlobalTerrainScene({ route, progress, exaggeration, grid, contours, preset }: {
+function GlobalTerrainScene({ route, progress, exaggeration, grid, contours, colorized, landmarks, preset, onHover, onSelect }: {
   route: Coordinate[];
   progress: number;
   exaggeration: number;
   grid: boolean;
   contours: boolean;
+  colorized: boolean;
+  landmarks: boolean;
   preset: CameraPreset;
+  onHover: (point: Coordinate) => void;
+  onSelect: (point: Coordinate) => void;
 }) {
   const overlayElevation = exaggeration * .51 + .035;
+  const routeTarget = useMemo(() => coordinateToTerrain(route[Math.floor(route.length / 2)] || route[0], 0), [route]);
+  const orbitTarget = preset === "route" ? routeTarget : new Vector3(0, 0, 0);
   return <>
-    <TerrainSurface exaggeration={exaggeration} contours={contours} />
+    <TerrainSurface exaggeration={exaggeration} contours={contours} colorized={colorized} onHover={onHover} onSelect={onSelect} />
     {grid && <GeographicGrid elevation={overlayElevation} />}
+    {landmarks && <LandmarkLayer elevation={overlayElevation + .025} onSelect={onSelect} />}
     <TerrainRoute route={route} progress={progress} elevation={overlayElevation + .015} />
     <directionalLight position={[-5, 8, 5]} intensity={3.4} color="#f5d0b2" castShadow />
     <hemisphereLight intensity={.58} color="#afc0cb" groundColor="#321c17" />
     <ambientLight intensity={.18} color="#7d8589" />
-    <CameraRig preset={preset} />
-    <OrbitControls target={[0, 0, 0]} enableDamping dampingFactor={.065} enablePan panSpeed={.65} minDistance={4.2} maxDistance={19} maxPolarAngle={Math.PI / 2.01} />
+    <CameraRig preset={preset} routeTarget={routeTarget} />
+    <OrbitControls target={orbitTarget} enableDamping dampingFactor={.065} enablePan panSpeed={.65} minDistance={3.4} maxDistance={19} maxPolarAngle={Math.PI / 2.01} />
     <AdaptiveDpr pixelated />
   </>;
 }
@@ -161,14 +214,28 @@ export default function TerrainLab3D({ route, progress }: { route: Coordinate[];
   const [exaggeration, setExaggeration] = useState(1.25);
   const [grid, setGrid] = useState(true);
   const [contours, setContours] = useState(false);
+  const [colorized, setColorized] = useState(true);
+  const [landmarks, setLandmarks] = useState(true);
   const [preset, setPreset] = useState<CameraPreset>("oblique");
   const distanceKm = routeDistance(route);
+  const { cursor, selection, setCursor, setPoint } = useMissionStore();
 
   return <div className="terrain-lab-view terrain-global-view terrain-flat-view">
     <Canvas camera={{ position: [0, 6.6, 8.7], fov: 43, near: .08, far: 100 }} dpr={[1, 1.65]} shadows gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}>
       <color attach="background" args={["#0a0c0d"]} />
       <fog attach="fog" args={["#0a0c0d", 16, 38]} />
-      <GlobalTerrainScene route={route} progress={progress} exaggeration={exaggeration} grid={grid} contours={contours} preset={preset} />
+      <GlobalTerrainScene
+        route={route}
+        progress={progress}
+        exaggeration={exaggeration}
+        grid={grid}
+        contours={contours}
+        colorized={colorized}
+        landmarks={landmarks}
+        preset={preset}
+        onHover={setCursor}
+        onSelect={setPoint}
+      />
     </Canvas>
 
     <div className="terrain-vignette" />
@@ -179,13 +246,24 @@ export default function TerrainLab3D({ route, progress }: { route: Coordinate[];
     </div>
 
     <div className="terrain-camera-presets" role="group" aria-label="Vista del terreno">
-      {(["oblique", "top", "low"] as CameraPreset[]).map(value => <button key={value} className={preset === value ? "active" : ""} onClick={() => setPreset(value)} aria-pressed={preset === value}>{value === "oblique" ? "3D" : value === "top" ? "Cenital" : "Rasante"}</button>)}
+      {(["oblique", "top", "low", "route"] as CameraPreset[]).map(value => <button key={value} className={preset === value ? "active" : ""} onClick={() => setPreset(value)} aria-pressed={preset === value}>{value === "oblique" ? "3D" : value === "top" ? "Cenital" : value === "low" ? "Rasante" : "Ruta"}</button>)}
     </div>
 
     <div className="global-terrain-controls terrain-surface-controls">
       <label>RELIEVE <b>{exaggeration.toFixed(2)}×</b><input type="range" min=".35" max="2.4" step=".05" value={exaggeration} onChange={event => setExaggeration(Number(event.target.value))} /></label>
       <button className={grid ? "active" : ""} onClick={() => setGrid(value => !value)} aria-pressed={grid}><i />Coordenadas</button>
       <button className={contours ? "active" : ""} onClick={() => setContours(value => !value)} aria-pressed={contours}><i />Malla</button>
+    </div>
+
+    <div className="terrain-layer-controls" role="group" aria-label="Capas científicas">
+      <button className={colorized ? "active" : ""} onClick={() => setColorized(value => !value)} aria-pressed={colorized}><i />Color MOLA</button>
+      <button className={landmarks ? "active" : ""} onClick={() => setLandmarks(value => !value)} aria-pressed={landmarks}><i />Lugares</button>
+    </div>
+
+    <div className="terrain-coordinate-hud">
+      <span>COORDENADA DEL CURSOR</span>
+      <b>{Math.abs(cursor.lat).toFixed(3)}°{cursor.lat >= 0 ? "N" : "S"} · {Math.abs(cursor.lon).toFixed(3)}°{cursor.lon >= 0 ? "E" : "O"}</b>
+      <small>Clic para fijar {selection === "base" ? "la base" : "el destino"}</small>
     </div>
 
     <div className="global-terrain-stats">

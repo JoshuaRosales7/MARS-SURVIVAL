@@ -1143,6 +1143,65 @@ button:active { transform: translateY(1px); }
 }
 .terrain-camera-presets button:hover { color: #ece9e3; background: rgba(255,255,255,.05); }
 .terrain-camera-presets button.active { color: #1b1816; background: #d6ad87; }
+.terrain-layer-controls {
+  position: absolute;
+  top: 216px;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  gap: 5px;
+  transform: translateX(-50%);
+}
+.terrain-layer-controls button {
+  height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(105,102,98,.42);
+  border-radius: 9px;
+  color: #8d9291;
+  background: rgba(19,20,21,.76);
+  font: 650 7px ui-sans-serif, system-ui;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+}
+.terrain-layer-controls button i { width: 5px; height: 5px; border-radius: 50%; background: #5f6262; }
+.terrain-layer-controls button.active { color: #eadfd4; border-color: rgba(196,142,101,.52); background: rgba(151,96,62,.15); }
+.terrain-layer-controls button.active i { background: #df815e; box-shadow: 0 0 8px rgba(223,129,94,.55); }
+.terrain-coordinate-hud {
+  position: absolute;
+  left: 28px;
+  top: 244px;
+  z-index: 5;
+  min-width: 205px;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-left: 2px solid #c57959;
+  border-radius: 0 9px 9px 0;
+  color: #dfdad4;
+  background: rgba(17,19,20,.68);
+  backdrop-filter: blur(14px);
+  pointer-events: none;
+}
+.terrain-coordinate-hud span { color: #888d8c; font-size: 6px; font-weight: 700; letter-spacing: .12em; }
+.terrain-coordinate-hud b { font: 700 10px ui-monospace; }
+.terrain-coordinate-hud small { color: #c09d83; font-size: 7px; }
+.terrain-landmark-label {
+  display: grid;
+  min-width: max-content;
+  gap: 1px;
+  padding: 5px 7px;
+  border: 1px solid rgba(215,177,140,.38);
+  border-radius: 6px;
+  color: #f1e5d8;
+  background: rgba(20,18,17,.78);
+  box-shadow: 0 6px 16px rgba(0,0,0,.28);
+  backdrop-filter: blur(8px);
+}
+.terrain-landmark-label b { font-size: 7px; letter-spacing: .03em; }
+.terrain-landmark-label span { color: #ae9884; font-size: 5px; text-transform: uppercase; }
 .terrain-surface-controls {
   width: 390px;
   display: grid;
@@ -1176,6 +1235,10 @@ button:active { transform: translateY(1px); }
   .global-terrain-controls { left: 8px; right: 8px; bottom: 82px; justify-content: center; }
   .global-terrain-controls button { flex: 1; justify-content: center; padding: 0 6px; }
   .terrain-camera-presets { top: 170px; }
+  .terrain-camera-presets button { min-width: 48px; padding: 0 6px; }
+  .terrain-layer-controls { top: 210px; }
+  .terrain-coordinate-hud { top: 250px; left: 10px; min-width: 180px; }
+  .terrain-landmark-label { display: none; }
   .terrain-surface-controls { display: grid; grid-template-columns: minmax(100px, 1fr) auto auto; }
   .terrain-surface-controls button { min-width: 65px; }
   .global-terrain-stats, .global-terrain-source { display: none; }
