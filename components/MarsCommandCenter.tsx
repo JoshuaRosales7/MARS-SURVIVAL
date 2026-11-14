@@ -111,6 +111,7 @@ export default function MarsCommandCenter() {
   const [rightCollapsed, setRightCollapsed] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [uiReady, setUiReady] = useState(false);
   const [search, setSearch] = useState("");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
@@ -130,6 +131,28 @@ export default function MarsCommandCenter() {
   const simPoint = missionRoute[simIndex] || store.base;
   const bearing = initialBearing(store.base, store.destination);
   const phase = store.progress === 0 ? "Preparada" : store.progress >= 1 ? "Completada" : store.config.returnRequired && store.progress > 0.5 ? "Regreso" : "Travesía";
+
+  const closeGuide = () => {
+    setGuideOpen(false);
+    window.localStorage.setItem("redreturn-onboarding-v1", "complete");
+  };
+  const openMissionSetup = () => {
+    setFocusMode(false); setLeftCollapsed(false); setLeftTab("places");
+  };
+  const openTerrain = () => {
+    store.setView("terrain"); setBottomTab("terrain"); setDrawerOpen(false);
+  };
+  const openAres = () => {
+    setFocusMode(false); setLeftCollapsed(false); setLeftTab("ares");
+    setQuestion(value => value || "¿Cuál es el principal riesgo y qué debo cambiar?");
+  };
+  const loadExampleMission = () => {
+    store.setSelection("destination");
+    store.setPoint({ lat: 18.55, lon: 77.93, name: "Delta de Jezero" });
+    store.setStrategy("direct");
+    openTerrain();
+    closeGuide();
+  };
 
   const toggleFocus = useCallback(() => {
     setFocusMode(value => {
@@ -158,7 +181,7 @@ export default function MarsCommandCenter() {
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem("mars-survival-ui-v3") || "{}");
+      const saved = JSON.parse(window.localStorage.getItem("redreturn-ui-v3") || "{}");
       if (typeof saved.drawerOpen === "boolean") setDrawerOpen(saved.drawerOpen);
       if (typeof saved.leftCollapsed === "boolean") setLeftCollapsed(saved.leftCollapsed);
       if (typeof saved.rightCollapsed === "boolean") setRightCollapsed(saved.rightCollapsed);
@@ -168,8 +191,12 @@ export default function MarsCommandCenter() {
   }, []);
 
   useEffect(() => {
+    if (window.localStorage.getItem("redreturn-onboarding-v1") !== "complete") setGuideOpen(true);
+  }, []);
+
+  useEffect(() => {
     if (!uiReady) return;
-    window.localStorage.setItem("mars-survival-ui-v3", JSON.stringify({ drawerOpen, leftCollapsed, rightCollapsed, focusMode }));
+    window.localStorage.setItem("redreturn-ui-v3", JSON.stringify({ drawerOpen, leftCollapsed, rightCollapsed, focusMode }));
   }, [drawerOpen, focusMode, leftCollapsed, rightCollapsed, uiReady]);
 
   useEffect(() => {
@@ -242,23 +269,23 @@ export default function MarsCommandCenter() {
     }
   };
   const exportMission = (type: "json"|"geojson"|"pdf") => {
-    const payload = { schema: "mars-survival/1.1", generatedAt: new Date().toISOString(), coordinateConvention: "planetocentric latitude, east-positive longitude normalized to -180..180", mission: { base: store.base, destination: store.destination, strategy: store.strategy, config: store.config }, result: evaluation, route, scientificLimitations: ["Global geometric route only", "No route-specific DEM profile loaded", "Radiation is a constant-rate scenario, not a forecast", "Resource rates are editable illustrative assumptions"] };
+    const payload = { schema: "redreturn/1.1", generatedAt: new Date().toISOString(), coordinateConvention: "planetocentric latitude, east-positive longitude normalized to -180..180", mission: { base: store.base, destination: store.destination, strategy: store.strategy, config: store.config }, result: evaluation, route, scientificLimitations: ["Global geometric route only", "No route-specific DEM profile loaded", "Radiation is a constant-rate scenario, not a forecast", "Resource rates are editable illustrative assumptions"] };
     if (type === "pdf") {
-      const doc = new jsPDF(); doc.setFillColor(7,12,19); doc.rect(0,0,210,297,"F"); doc.setTextColor(255,138,92); doc.setFontSize(22); doc.text("MARS SURVIVAL",18,24); doc.setTextColor(243,246,252); doc.setFontSize(11);
+      const doc = new jsPDF(); doc.setFillColor(7,12,19); doc.rect(0,0,210,297,"F"); doc.setTextColor(255,138,92); doc.setFontSize(22); doc.text("REDRETURN",18,24); doc.setTextColor(243,246,252); doc.setFontSize(11);
       ["Informe de inteligencia de misión",`Base: ${coords(store.base)}`,`Destino: ${coords(store.destination)}`,`Estrategia: ${store.strategy}`,`Distancia total: ${fmt(evaluation.distanceKm)} km`,`Duración estimada: ${fmt(evaluation.durationHours)} h`,`Oxígeno restante: ${fmt(evaluation.oxygenRemaining)} kg`,`Agua restante: ${fmt(evaluation.waterRemaining)} L`,`Radiación estimada: ${fmt(evaluation.radiationMsv,2)} mSv`,`Resultado: ${evaluation.feasible?"FAVORABLE EN EL MODELO":"RESTRICCIÓN INCUMPLIDA"}`,"",...evaluation.reasons,"","Límite: ruta geométrica global; seguridad de terreno no evaluada."].forEach((line,i)=>doc.text(line,18,40+i*8));
-      doc.save("mars-survival-report.pdf"); return;
+      doc.save("redreturn-report.pdf"); return;
     }
     const body = type === "geojson" ? { type:"FeatureCollection", crs:{type:"name",properties:{name:"IAU Mars 2000; planetocentric; longitude east-positive"}}, features:[{type:"Feature",properties:{strategy:store.strategy,quality:"global-geometric",distance_km:evaluation.distanceKm},geometry:{type:"LineString",coordinates:route.map(p=>[p.lon,p.lat])}}] } : payload;
-    const blob = new Blob([JSON.stringify(body,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`mars-survival.${type}`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    const blob = new Blob([JSON.stringify(body,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`redreturn.${type}`; a.click(); window.setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   };
 
   return <main className={`app-shell ${drawerOpen ? "drawer-open" : "drawer-closed"} ${leftCollapsed ? "left-collapsed" : ""} ${rightCollapsed ? "right-collapsed" : ""} ${focusMode ? "focus-mode" : ""}`}>
     <header className="topbar">
-      <div className="brand"><span className="brand-mark"><Globe2 size={21}/></span><div><b>MARS SURVIVAL</b><small>PLANIFICA · EVALÚA · REGRESA</small></div></div>
-      <div className="mission-breadcrumb"><span>MS-01</span><ChevronRight size={13}/><b>{store.base.name || "BASE"}</b><ChevronRight size={13}/><strong>{store.destination.name || "DESTINO"}</strong></div>
+      <div className="brand"><span className="brand-mark"><Globe2 size={21}/></span><div><b>REDRETURN</b><small>PLANIFICA · EVALÚA · REGRESA</small></div></div>
+      <div className="mission-breadcrumb"><span>RR-01</span><ChevronRight size={13}/><b>{store.base.name || "BASE"}</b><ChevronRight size={13}/><strong>{store.destination.name || "DESTINO"}</strong></div>
       <div className="location"><span>COORDENADA ACTIVA</span><b>{coords(store.cursor)}</b></div>
       <div className="view-switch"><button aria-pressed={store.view==="globe"} className={store.view==="globe"?"active":""} onClick={()=>store.setView("globe")}><Box size={15}/> Globo</button><button aria-pressed={store.view==="map"} className={store.view==="map"?"active":""} onClick={()=>store.setView("map")}><Map size={15}/> Mapa</button><button aria-pressed={store.view==="terrain"} className={store.view==="terrain"?"active":""} onClick={()=>{store.setView("terrain");setBottomTab("terrain")}}><Mountain size={15}/> Terreno</button></div>
-      <div className="workspace-actions"><button className={focusMode?"active":""} onClick={toggleFocus} aria-pressed={focusMode} title="Modo enfoque (F)">{focusMode?<Minimize2 size={15}/>:<Maximize2 size={15}/>}<span>{focusMode?"Salir":"Enfoque"}</span></button><button className={shortcutsOpen?"active":""} onClick={()=>setShortcutsOpen(value=>!value)} aria-expanded={shortcutsOpen} title="Atajos de teclado"><Keyboard size={15}/><span>Atajos</span></button></div>
+      <div className="workspace-actions"><button className={guideOpen?"active":""} onClick={()=>setGuideOpen(true)} aria-expanded={guideOpen} title="Abrir guía de inicio"><Navigation size={15}/><span>Guía</span></button><button className={focusMode?"active":""} onClick={toggleFocus} aria-pressed={focusMode} title="Modo enfoque (F)">{focusMode?<Minimize2 size={15}/>:<Maximize2 size={15}/>}<span>{focusMode?"Salir":"Enfoque"}</span></button><button className={shortcutsOpen?"active":""} onClick={()=>setShortcutsOpen(value=>!value)} aria-expanded={shortcutsOpen} title="Atajos de teclado"><Keyboard size={15}/><span>Atajos</span></button></div>
       <div className={`source-state ${apiOnline ? "online" : "local"}`}><i/>{apiOnline === null ? "COMPROBANDO API" : apiOnline ? "API CONECTADA" : "MODO LOCAL"}</div>
       <div className="export-menu"><Download size={16}/><select aria-label="Exportar misión" defaultValue="" onChange={(e)=>{if(e.target.value) exportMission(e.target.value as "json"|"geojson"|"pdf");e.target.value=""}}><option value="" disabled>Exportar</option><option value="pdf">Informe PDF</option><option value="json">Misión JSON</option><option value="geojson">Ruta GeoJSON</option></select></div>
       {shortcutsOpen && <div className="shortcut-popover" role="dialog" aria-label="Atajos de teclado"><div><b>Atajos rápidos</b><button onClick={()=>setShortcutsOpen(false)} aria-label="Cerrar atajos">×</button></div><p><kbd>1</kbd><span>Globo</span><kbd>2</kbd><span>Mapa</span><kbd>3</kbd><span>Terreno</span><kbd>F</kbd><span>Modo enfoque</span><kbd>D</kbd><span>Panel de datos</span><kbd>Espacio</kbd><span>Iniciar o pausar</span><kbd>Esc</kbd><span>Cerrar paneles</span></p></div>}
@@ -267,6 +294,10 @@ export default function MarsCommandCenter() {
     <aside className="left-panel panel">
       <nav className="tabs" aria-label="Herramientas"><button className={leftTab==="plan"?"active":""} onClick={()=>setLeftTab("plan")}><MapPin size={15}/> Misión</button><button className={leftTab==="ares"?"active":""} onClick={()=>setLeftTab("ares")}><BrainCircuit size={15}/> ARES</button><button className={leftTab==="layers"?"active":""} onClick={()=>setLeftTab("layers")}><Layers3 size={15}/> Capas</button><button className={leftTab==="places"?"active":""} onClick={()=>setLeftTab("places")}><Search size={15}/> Lugares</button></nav>
       {leftTab==="plan" && <div className="panel-content">
+        <section className="mission-start">
+          <span>INICIO RÁPIDO</span><h3>Planifica sin ser experto</h3><p>Primero elige un destino. Después revisa el terreno y pide a ARES una recomendación.</p>
+          <button onClick={openMissionSetup}><MapPin size={15}/><span><b>Elegir destino</b><small>Explora lugares conocidos de Marte</small></span><ChevronRight size={15}/></button>
+        </section>
         <section><div className="section-head"><span>01</span><div><h3>Define la expedición</h3><small>Elige qué punto editar y toca el mapa</small></div></div>
           <div className="segmented"><button className={store.selection==="base"?"active":""} onClick={()=>store.setSelection("base")}>Editar base</button><button className={store.selection==="destination"?"active":""} onClick={()=>store.setSelection("destination")}>Editar destino</button></div>
           <CoordinateEditor label="BASE" point={store.base} color="#63e6be" onChange={p=>{store.setSelection("base");store.setPoint(p)}} />
@@ -296,7 +327,7 @@ export default function MarsCommandCenter() {
         <section className="ares-probability"><div className="ares-ring" style={{"--probability": `${ares.survivalProbability * 3.6}deg`} as React.CSSProperties}><strong>{fmt(ares.survivalProbability,0)}%</strong><span>ÉXITO SIMULADO</span></div><div><span>{ares.headline.toUpperCase()}</span><b>{ares.runs.toLocaleString("es-GT")} escenarios</b><small>{ares.briefing}</small></div></section>
         <section className="ares-section"><h3><CircleGauge size={15}/> Resiliencia por restricción</h3><div className="ares-constraints">{Object.entries(ares.constraintProbabilities).map(([key,value])=><div key={key} className={key===ares.criticalFactor?"critical":""}><span>{({oxygen:"Oxígeno",energy:"Energía",water:"Agua",radiation:"Radiación",time:"Tiempo"} as Record<string,string>)[key]}{key===ares.criticalFactor&&<em>LIMITANTE</em>}</span><b>{fmt(value,0)}%</b><i><u style={{width:`${value}%`}}/></i></div>)}</div><p className="confidence-band">P10–P90 de duración: <b>{fmt(ares.confidence.durationP10)}–{fmt(ares.confidence.durationP90)} h</b></p></section>
         <section className="ares-section"><h3><Sparkles size={15}/> Plan de acción autónomo</h3>{ares.actions.length ? <div className="ares-actions">{ares.actions.map(action=><button key={action.id} onClick={()=>{store.setConfig(action.configPatch);setServerAres(null)}}><span><b>{action.label}</b><small>{action.rationale}</small></span><em>APLICAR</em></button>)}</div> : <div className="ares-clear"><Check size={16}/><span><b>Sin ajustes críticos</b><small>Los recursos conservan margen en el escenario P90.</small></span></div>}</section>
-        <section className="ares-section"><h3><BrainCircuit size={15}/> Pregunta a ARES</h3><form className="ares-query" onSubmit={e=>{e.preventDefault();void runAres()}}><textarea value={question} onChange={e=>{setQuestion(e.target.value);setServerAres(null)}} maxLength={500} placeholder="Ej.: ¿Qué cambio aumenta más la probabilidad de regreso?"/><button disabled={aresLoading} aria-label="Analizar misión">{aresLoading?<LoaderCircle className="spin" size={16}/>:<Send size={16}/>} ANALIZAR</button></form><div className="ares-answer"><span>ARES / {ares.mode === "openai" ? "GENERATIVO" : "LOCAL AUDITABLE"}</span><p>{ares.answer}</p></div></section>
+        <section className="ares-section"><h3><BrainCircuit size={15}/> Pregunta a ARES</h3><div className="ares-prompts"><button onClick={()=>setQuestion("¿Cuál es el principal riesgo?")}>Ver riesgo principal</button><button onClick={()=>setQuestion("¿Qué cambio aumenta más la probabilidad de regreso?")}>Mejorar la misión</button></div><form className="ares-query" onSubmit={e=>{e.preventDefault();void runAres()}}><textarea value={question} onChange={e=>{setQuestion(e.target.value);setServerAres(null)}} maxLength={500} placeholder="Escribe una pregunta o elige una sugerencia arriba"/><button disabled={aresLoading} aria-label="Analizar misión">{aresLoading?<LoaderCircle className="spin" size={16}/>:<Send size={16}/>} ANALIZAR</button></form><div className="ares-answer"><span>ARES / {ares.mode === "openai" ? "GENERATIVO" : "LOCAL AUDITABLE"}</span><p>{ares.answer}</p></div></section>
         <details className="ares-caveats"><summary>Qué sabe y qué no sabe ARES</summary><ul>{ares.caveats.map(item=><li key={item}>{item}</li>)}</ul></details>
       </div>}
       {leftTab==="layers" && <div className="panel-content"><div className="section-head"><span>05</span><div><h3>Capas científicas y 3D</h3><small>Controla datos y contexto orbital</small></div></div>{[{id:"imagery",name:"Relieve sombreado MOLA",meta:"NASA Mars Trek · cobertura global"},{id:"routes",name:"Corredor energético",meta:"Geodesia con pulsos de telemetría"},{id:"telemetry",name:"Balizas operacionales",meta:"Base, objetivo y posición simulada"},{id:"atmosphere",name:"Atmósfera óptica",meta:"Halo visual Fresnel · no es densidad medida"},{id:"orbits",name:"Contexto orbital",meta:"Órbitas y lunas como referencia visual"},{id:"landmarks",name:"Sitios de interés",meta:"Catálogo curado de ubicaciones"},{id:"grid",name:"Retícula planetocéntrica",meta:"Longitud positiva al este"}].map(l=><label className="layer-row" key={l.id}><div><b>{l.name}</b><small>{l.meta}</small></div><input type="checkbox" checked={store.layers[l.id]} onChange={()=>store.toggleLayer(l.id)}/><i/></label>)}<div className="warning"><AlertTriangle size={17}/><p><b>Visualización avanzada, no terreno 3D</b>La atmósfera, las órbitas y las balizas son contexto visual. No hay un DEM numérico conectado; pendiente, rocas y transitabilidad siguen como datos insuficientes.</p></div></div>}
@@ -307,6 +338,15 @@ export default function MarsCommandCenter() {
       <button className="side-panel-toggle left" onClick={()=>{setFocusMode(false);setLeftCollapsed(value=>!value)}} aria-label={leftCollapsed?"Mostrar configuración de misión":"Ocultar configuración de misión"} title={leftCollapsed?"Mostrar configuración":"Ocultar configuración"}>{leftCollapsed?<PanelLeftOpen size={16}/>:<PanelLeftClose size={16}/>}<span>{leftCollapsed?"Misión":"Cerrar"}</span></button>
       <button className="side-panel-toggle right" onClick={()=>{setFocusMode(false);setRightCollapsed(value=>!value)}} aria-label={rightCollapsed?"Mostrar análisis de misión":"Ocultar análisis de misión"} title={rightCollapsed?"Mostrar análisis":"Ocultar análisis"}><span>{rightCollapsed?"Análisis":"Cerrar"}</span>{rightCollapsed?<PanelRightOpen size={16}/>:<PanelRightClose size={16}/>}</button>
       {store.view==="globe" ? <AdvancedMarsGlobe route={route} simPoint={simPoint} feasible={evaluation.feasible} cinematic={cinematic}/> : store.view==="terrain" ? <TerrainLab3D route={route} progress={store.progress}/> : <MapView route={route} simPoint={simPoint}/>}
+      {guideOpen && <section className="start-guide" aria-label="Guía de inicio">
+        <div className="start-guide-heading"><div><span>BIENVENIDO A REDRETURN</span><h2>Tu primera misión, en tres pasos</h2><p>Empieza con una ruta de ejemplo o configura la tuya. No necesitas saber coordenadas ni parámetros técnicos.</p></div><button onClick={closeGuide} aria-label="Cerrar guía">×</button></div>
+        <div className="start-guide-steps">
+          <button onClick={openMissionSetup}><i>1</i><span><b>Elige un destino</b><small>Selecciona un lugar conocido o usa el mapa.</small></span><ChevronRight size={16}/></button>
+          <button onClick={openTerrain}><i>2</i><span><b>Observa el terreno</b><small>Explora el relieve global 3D de Marte.</small></span><ChevronRight size={16}/></button>
+          <button onClick={openAres}><i>3</i><span><b>Consulta a ARES</b><small>Obtén una explicación clara del riesgo.</small></span><ChevronRight size={16}/></button>
+        </div>
+        <footer><button onClick={closeGuide}>Explorar por mi cuenta</button><button className="primary" onClick={loadExampleMission}>Ver misión de ejemplo <ChevronRight size={15}/></button></footer>
+      </section>}
       <div className="stage-label"><span>{store.view==="terrain"?"TOPOGRAFÍA GLOBAL / NASA MOLA":"OPERACIONES GLOBALES / MARS 2000"}</span><b>{store.view==="globe"?"GLOBO ORBITAL":store.view==="terrain"?"TERRENO GLOBAL 3D":"MAPA EQUIRECTANGULAR"}</b></div>
       <div className="route-readout"><div><Navigation size={14}/><span>RUMBO INICIAL</span><b>{fmt(bearing,0)}°</b></div><div><Globe2 size={14}/><span>SOLO IDA</span><b>{fmt(evaluation.oneWayKm)} km</b></div><div><FlaskConical size={14}/><span>CIENCIA</span><b>{fmt(store.config.scienceHours)} h</b></div></div>
       <div className={`quality-badge ${store.view==="terrain"?"conceptual":""}`}><Database size={14}/><span>{store.view==="terrain"?"DATOS DEL TERRENO":"CALIDAD DE RUTA"}</span><b>{store.view==="terrain"?"MOLA GLOBAL · 463 M":"GEOMETRÍA GLOBAL"}</b><small>{store.view==="terrain"?"Cobertura planetaria oficial":"Terreno no evaluado"}</small></div>

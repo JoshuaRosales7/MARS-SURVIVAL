@@ -1,5 +1,5 @@
 {
-  "name": "mars-survival",
+  "name": "redreturn",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "api": "py -m uvicorn api.main:app --reload --port 8000"
+    "api": ".\\.venv\\Scripts\\python.exe -m uvicorn api.main:app --env-file .env.local --reload --port 8000"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/mars-survival-banner.svg" alt="Mars Survival — Explore farther. Return safer." width="100%">
+  <img src="docs/assets/redreturn-banner.svg" alt="RedReturn — Explore farther. Return safer." width="100%">
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 ## 🚀 Mission overview
 
-**Mars Survival** is an interactive mission-planning platform for human exploration of Mars. It combines global route geometry, 3D planetary visualization, crew-resource modeling, deterministic simulation, uncertainty analysis, and an optional generative AI briefing layer.
+**RedReturn** is an interactive mission-planning platform for human exploration of Mars. It combines global route geometry, 3D planetary visualization, crew-resource modeling, deterministic simulation, uncertainty analysis, and an optional generative AI briefing layer.
 
 The central question is simple:
 
@@ -37,7 +37,7 @@ The central question is simple:
 The application is designed as an educational NASA Space Apps project. Every result distinguishes between **calculated facts**, **scenario assumptions**, and **missing scientific data**.
 
 > [!IMPORTANT]
-> Mars Survival is experimental planning software—not certified navigation, medical guidance, or operational mission control.
+> RedReturn is experimental planning software—not certified navigation, medical guidance, or operational mission control.
 
 ---
 
@@ -153,8 +153,8 @@ More detail is available in [Architecture](docs/ARCHITECTURE.md) and [Verificati
 ### Frontend
 
 ```powershell
-git clone https://github.com/JoshuaRosales7/Mars-Survival.git
-cd Martian
+git clone https://github.com/JoshuaRosales7/redreturn.git
+cd redreturn
 npm.cmd install
 npm.cmd run dev
 ```
@@ -246,7 +246,7 @@ GitHub Actions runs frontend and backend verification on every pull request and 
 ## 📁 Repository structure
 
 ```text
-Martian/
+redreturn/
 ├── app/                         # Next.js shell and global interface
 ├── components/
 │   ├── AdvancedMarsGlobe.tsx    # Orbital WebGL scene
@@ -285,7 +285,7 @@ Martian/
 
 ## 🛡️ Scientific integrity
 
-Mars Survival intentionally refuses to claim data it does not possess:
+RedReturn intentionally refuses to claim data it does not possess:
 
 - Global routes are geometric, not terrain-certified.
 - The Terrain Lab is visually useful but does not represent measured MOLA elevations.
@@ -320,5 +320,5 @@ Built for the **NASA International Space Apps Challenge**, with data and guidanc
 
 <p align="center">
   <strong>Explore farther. Return safer.</strong><br>
-  <sub>Mars Survival · Educational and experimental mission intelligence</sub>
+  <sub>RedReturn · Educational and experimental mission intelligence</sub>
 </p>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" role="img" aria-labelledby="title desc">
+  <title id="title">RedReturn</title>
+  <desc id="desc">An orbital Mars mission-planning banner with terrain telemetry and ARES AI for RedReturn.</desc>
+  <defs>
+    <radialGradient id="space" cx="55%" cy="42%" r="80%">
+      <stop offset="0" stop-color="#16263a"/><stop offset=".46" stop-color="#080f19"/><stop offset="1" stop-color="#030508"/>
+    </radialGradient>
+    <radialGradient id="mars" cx="36%" cy="29%" r="70%">
+      <stop offset="0" stop-color="#ffb078"/><stop offset=".3" stop-color="#d96843"/><stop offset=".7" stop-color="#783226"/><stop offset="1" stop-color="#251315"/>
+    </radialGradient>
+    <linearGradient id="route" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#63e6be"/><stop offset=".55" stop-color="#66d7ed"/><stop offset="1" stop-color="#ff8a5c"/>
+    </linearGradient>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="planet"><circle cx="1245" cy="253" r="210"/></clipPath>
+  </defs>
+  <rect width="1600" height="500" fill="url(#space)"/>
+  <g fill="#b9d8ef" opacity=".58">
+    <circle cx="92" cy="82" r="1.4"/><circle cx="185" cy="420" r="1"/><circle cx="289" cy="61" r="1.2"/><circle cx="412" cy="394" r="1.5"/><circle cx="522" cy="102" r="1"/><circle cx="684" cy="444" r="1.3"/><circle cx="796" cy="54" r="1.4"/><circle cx="938" cy="413" r="1"/><circle cx="1024" cy="83" r="1.1"/><circle cx="1492" cy="62" r="1.3"/><circle cx="1541" cy="388" r="1.1"/>
+  </g>
+  <g opacity=".35" stroke="#66d7ed" fill="none">
+    <path d="M0 410 C250 345 390 462 650 386 S1000 320 1600 368"/><path d="M0 433 C260 368 407 480 660 408 S1010 343 1600 391" opacity=".35"/>
+    <path d="M90 360V446 M185 346V432 M280 355V441 M375 380V462 M470 393V472 M565 384V461 M660 361V441 M755 344V426 M850 341V424" opacity=".18"/>
+  </g>
+  <g transform="translate(105 108)">
+    <text y="0" fill="#66d7ed" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" letter-spacing="7">MARS 2000 / MISSION INTELLIGENCE</text>
+    <text y="105" fill="#f5f8fc" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="800" letter-spacing="10">RED</text>
+    <text y="185" fill="#ff8a5c" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="800" letter-spacing="7">RETURN</text>
+    <rect x="2" y="215" width="594" height="2" fill="url(#route)"/>
+    <text y="258" fill="#a7b8ca" font-family="Arial,Helvetica,sans-serif" font-size="22" letter-spacing="5">EXPLORE FARTHER · RETURN SAFER</text>
+    <g transform="translate(0 300)" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">
+      <rect width="128" height="38" rx="19" fill="#66d7ed" fill-opacity=".08" stroke="#66d7ed" stroke-opacity=".5"/><text x="21" y="24" fill="#66d7ed">3D ORBIT</text>
+      <rect x="143" width="155" height="38" rx="19" fill="#ff8a5c" fill-opacity=".08" stroke="#ff8a5c" stroke-opacity=".5"/><text x="164" y="24" fill="#ff8a5c">TERRAIN LAB</text>
+      <rect x="313" width="130" height="38" rx="19" fill="#8b9cff" fill-opacity=".08" stroke="#8b9cff" stroke-opacity=".5"/><text x="337" y="24" fill="#aab5ff">ARES AI</text>
+    </g>
+  </g>
+  <circle cx="1245" cy="253" r="221" fill="none" stroke="#ff8a5c" stroke-opacity=".26" stroke-width="5" filter="url(#glow)"/>
+  <circle cx="1245" cy="253" r="210" fill="url(#mars)"/>
+  <g clip-path="url(#planet)" fill="none" stroke="#3d1716" opacity=".56">
+    <ellipse cx="1195" cy="205" rx="158" ry="56" stroke-width="18" transform="rotate(-12 1195 205)"/><ellipse cx="1338" cy="325" rx="122" ry="44" stroke-width="10" transform="rotate(18 1338 325)"/>
+    <path d="M1040 278 C1115 222 1167 327 1234 275 S1374 204 1457 264" stroke-width="16"/><path d="M1063 151 C1150 111 1308 118 1438 174" stroke="#ffb078" stroke-opacity=".28" stroke-width="4"/><path d="M1065 363 C1194 405 1345 405 1433 343" stroke="#120b0d" stroke-width="26" opacity=".5"/>
+  </g>
+  <ellipse cx="1245" cy="253" rx="322" ry="88" fill="none" stroke="#66d7ed" stroke-opacity=".34" stroke-width="2" transform="rotate(-15 1245 253)"/>
+  <path d="M1016 346 C1102 279 1166 302 1229 241 S1378 155 1477 189" fill="none" stroke="url(#route)" stroke-width="5" filter="url(#glow)"/>
+  <circle cx="1018" cy="345" r="9" fill="#63e6be" filter="url(#glow)"/><circle cx="1477" cy="189" r="9" fill="#ff8a5c" filter="url(#glow)"/><circle cx="1262" cy="220" r="7" fill="#fff" filter="url(#glow)"/>
+  <g transform="translate(1462 383)" fill="none" stroke="#8b9cff" opacity=".8"><circle r="33"/><circle r="20"/><circle r="6" fill="#8b9cff"/><path d="M-46 0H46 M0-46V46" opacity=".35"/></g>
+</svg>

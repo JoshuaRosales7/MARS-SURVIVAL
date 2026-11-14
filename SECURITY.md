@@ -27,4 +27,4 @@ Please allow reasonable time for investigation before public disclosure.
 
 ## Scope note
 
-Mars Survival is educational and experimental. Security fixes do not make it certified operational, medical, or navigation software.
+RedReturn is educational and experimental. Security fixes do not make it certified operational, medical, or navigation software.

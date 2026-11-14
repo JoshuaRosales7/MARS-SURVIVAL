@@ -5,7 +5,7 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping improve Mars Survival. Do not include API keys or private mission data.
+      value: Thanks for helping improve RedReturn. Do not include API keys or private mission data.
   - type: textarea
     id: summary
     attributes:

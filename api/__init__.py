@@ -1,1 +1,1 @@
-"""Mars Survival scientific planning API."""
+"""RedReturn scientific planning API."""

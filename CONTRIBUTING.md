@@ -1,6 +1,6 @@
-# Contributing to Mars Survival
+# Contributing to RedReturn
 
-Thank you for improving Mars Survival. The project welcomes contributions to the mission experience, 3D visualization, geodesy, resource model, ARES copilot, FastAPI service, tests, and documentation.
+Thank you for improving RedReturn. The project welcomes contributions to the mission experience, 3D visualization, geodesy, resource model, ARES copilot, FastAPI service, tests, and documentation.
 
 ## Development setup
 

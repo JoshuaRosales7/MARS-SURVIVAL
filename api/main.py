@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import random
 from heapq import heappop, heappush
@@ -14,6 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, model_validator
 
 MARS_RADIUS_KM = 3389.5
+logger = logging.getLogger("redreturn.ai")
+AI_RUNTIME_STATUS: dict[str, str] = {"state": "not_configured"}
 
 
 class Coordinate(BaseModel):
@@ -224,7 +227,9 @@ def analyze_uncertainty(req: AresRequest) -> dict:
 
 def enrich_with_openai(analysis: dict, question: str) -> dict:
     """Let the model communicate verified facts; never let it replace the calculator."""
+    global AI_RUNTIME_STATUS
     if not os.getenv("OPENAI_API_KEY"):
+        AI_RUNTIME_STATUS = {"state": "not_configured"}
         return analysis
     try:
         from openai import OpenAI
@@ -242,11 +247,17 @@ def enrich_with_openai(analysis: dict, question: str) -> dict:
         )
         if response.output_parsed:
             language = response.output_parsed
+            AI_RUNTIME_STATUS = {"state": "ready", "model": os.getenv("OPENAI_MODEL", "gpt-6-astra")}
             return {**analysis, "mode": "openai", "model": os.getenv("OPENAI_MODEL", "gpt-6-astra"), **language.model_dump()}
-    except Exception:
+    except Exception as exc:
         # The mission calculator remains available if credentials, quota or network fail.
-        pass
-    return analysis
+        # This is safe to expose locally: it never includes the credential itself.
+        detail = f"{type(exc).__name__}: {exc}"
+        AI_RUNTIME_STATUS = {"state": "error", "detail": detail}
+        logger.warning("ARES generative briefing unavailable: %s", detail)
+        return {**analysis, "ai_error": detail}
+    AI_RUNTIME_STATUS = {"state": "empty_response"}
+    return {**analysis, "ai_error": "The configured model returned no structured response."}
 
 
 def astar(costs: list[list[float]], start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
@@ -280,14 +291,15 @@ def astar(costs: list[list[float]], start: tuple[int, int], goal: tuple[int, int
     raise ValueError("No traversable route")
 
 
-app = FastAPI(title="Mars Survival API", version="0.2.0", description="Transparent educational Mars expedition planning and ARES intelligence services")
+app = FastAPI(title="RedReturn API", version="0.2.0", description="Transparent educational Mars expedition planning and ARES intelligence services")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000"], allow_methods=["*"], allow_headers=["*"])
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "mars-survival", "version": app.version,
-            "features": {"ares": True, "generative_ai": bool(os.getenv("OPENAI_API_KEY"))}}
+    return {"status": "ok", "service": "redreturn", "version": app.version,
+            "features": {"ares": True, "generative_ai": bool(os.getenv("OPENAI_API_KEY"))},
+            "ai_runtime": AI_RUNTIME_STATUS}
 
 
 @app.get("/api/regions")

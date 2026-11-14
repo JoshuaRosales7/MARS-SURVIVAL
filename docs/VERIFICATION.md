@@ -24,7 +24,7 @@ Execution results are added after dependency installation and build validation.
 
 - `npm test`: **passed**, 8/8 Vitest cases.
 - `npm run build`: **passed**, Next.js production compilation, strict type checking and static export.
-- Local readiness request to `http://127.0.0.1:3100`: **HTTP 200**, generated page contained the Mars Survival title.
+- Local readiness request to `http://127.0.0.1:3100`: **HTTP 200**, generated page contained the RedReturn title.
 - Python API tests: **not executed** because neither Python nor Docker is installed in this environment. Test files are included but their status is unverified.
 - Browser-driven visual QA: **not executed** because this session has no browser-control capability. The responsive layout was reviewed statically and HTTP readiness was verified.
 

@@ -7,6 +7,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
+.env.local
 coverage/
 site-archive.tar.gz
 docs/qa/

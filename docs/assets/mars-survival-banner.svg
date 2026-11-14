@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" role="img" aria-labelledby="title desc">
-  <title id="title">Mars Survival</title>
-  <desc id="desc">An orbital Mars mission-planning banner with terrain telemetry and ARES AI.</desc>
+  <title id="title">RedReturn</title>
+  <desc id="desc">An orbital Mars mission-planning banner with terrain telemetry and ARES AI for RedReturn.</desc>
   <defs>
     <radialGradient id="space" cx="55%" cy="42%" r="80%">
       <stop offset="0" stop-color="#16263a"/><stop offset=".46" stop-color="#080f19"/><stop offset="1" stop-color="#030508"/>
@@ -26,8 +26,8 @@
   </g>
   <g transform="translate(105 108)">
     <text y="0" fill="#66d7ed" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" letter-spacing="7">MARS 2000 / MISSION INTELLIGENCE</text>
-    <text y="105" fill="#f5f8fc" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="800" letter-spacing="10">MARS</text>
-    <text y="185" fill="#ff8a5c" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="800" letter-spacing="7">SURVIVAL</text>
+    <text y="105" fill="#f5f8fc" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="800" letter-spacing="10">RED</text>
+    <text y="185" fill="#ff8a5c" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="800" letter-spacing="7">RETURN</text>
     <rect x="2" y="215" width="594" height="2" fill="url(#route)"/>
     <text y="258" fill="#a7b8ca" font-family="Arial,Helvetica,sans-serif" font-size="22" letter-spacing="5">EXPLORE FARTHER · RETURN SAFER</text>
     <g transform="translate(0 300)" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">

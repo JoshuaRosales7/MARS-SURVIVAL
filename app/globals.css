@@ -1359,3 +1359,50 @@ button:active { transform: translateY(1px); }
   .terrain-tools-toggle { width: 38px; padding: 0; justify-content: center; font-size: 0; }
   .terrain-tools-grid.layers { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Beginner-friendly mission flow */
+.mission-start { padding: 14px; border: 1px solid rgba(206,118,87,.38); border-radius: 12px; background: linear-gradient(135deg, rgba(206,118,87,.13), rgba(25,29,32,.62)); }
+.mission-start > span { color: var(--orange); font-size: 8px; font-weight: 750; letter-spacing: .12em; }
+.mission-start h3 { margin: 7px 0 5px; font-size: 13px; letter-spacing: .01em; }
+.mission-start p { margin: 0 0 12px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.mission-start button { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px; border: 1px solid rgba(206,118,87,.34); border-radius: 8px; color: var(--text); background: rgba(10,13,15,.48); text-align: left; cursor: pointer; }
+.mission-start button:hover { border-color: var(--orange); background: rgba(206,118,87,.12); }
+.mission-start button span { flex: 1; }
+.mission-start button b, .mission-start button small { display: block; }
+.mission-start button b { font-size: 10px; }
+.mission-start button small { margin-top: 2px; color: var(--muted); font-size: 8px; }
+
+.start-guide { position: absolute; z-index: 12; top: 50%; left: 50%; width: min(500px, calc(100% - 48px)); padding: 18px; border: 1px solid rgba(180,170,157,.35); border-radius: 16px; background: rgba(18,20,21,.94); box-shadow: 0 28px 80px rgba(0,0,0,.48); backdrop-filter: blur(22px); transform: translate(-50%,-50%); }
+.start-guide-heading { display: flex; gap: 14px; }
+.start-guide-heading > div { flex: 1; }
+.start-guide-heading span { color: #d79a76; font-size: 8px; font-weight: 750; letter-spacing: .12em; }
+.start-guide-heading h2 { margin: 6px 0; font-size: 19px; letter-spacing: -.02em; }
+.start-guide-heading p { margin: 0; color: #b3b4b0; font-size: 10px; line-height: 1.5; }
+.start-guide-heading > button { width: 28px; height: 28px; border: 0; border-radius: 7px; color: #a6a7a3; background: rgba(255,255,255,.06); font-size: 20px; line-height: 1; cursor: pointer; }
+.start-guide-heading > button:hover { color: var(--text); background: rgba(255,255,255,.11); }
+.start-guide-steps { display: grid; gap: 6px; margin-top: 17px; }
+.start-guide-steps > button { display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid rgba(133,136,133,.31); border-radius: 10px; color: var(--text); background: rgba(255,255,255,.025); text-align: left; cursor: pointer; }
+.start-guide-steps > button:hover { border-color: rgba(213,153,112,.72); background: rgba(205,117,84,.1); }
+.start-guide-steps i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: #1b1917; background: #d6ad87; font: 750 11px ui-monospace, monospace; font-style: normal; }
+.start-guide-steps span { display: grid; gap: 2px; }
+.start-guide-steps b { font-size: 11px; }
+.start-guide-steps small { color: #9ea09b; font-size: 8px; }
+.start-guide-steps svg { color: #9e8570; }
+.start-guide footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 16px; }
+.start-guide footer button { height: 34px; padding: 0 11px; border: 0; border-radius: 8px; color: #afb0ac; background: transparent; font-size: 9px; cursor: pointer; }
+.start-guide footer button:hover { color: var(--text); background: rgba(255,255,255,.05); }
+.start-guide footer .primary { display: flex; align-items: center; gap: 5px; color: #1d1a17; background: #d6ad87; font-weight: 750; }
+.start-guide footer .primary:hover { background: #e5be99; }
+
+.ares-prompts { display: flex; flex-wrap: wrap; gap: 5px; margin: -2px 0 9px; }
+.ares-prompts button { border: 1px solid rgba(145,167,170,.3); border-radius: 999px; color: #b9c6c5; background: rgba(145,167,170,.06); padding: 5px 8px; font-size: 8px; cursor: pointer; }
+.ares-prompts button:hover { border-color: var(--blue); color: var(--text); background: rgba(145,167,170,.14); }
+
+@media (max-width: 720px) {
+  .start-guide { top: 52%; width: calc(100% - 28px); padding: 15px; }
+  .start-guide-heading h2 { font-size: 16px; }
+  .start-guide-heading p { font-size: 9px; }
+  .start-guide-steps > button { padding: 9px; }
+  .start-guide footer { justify-content: space-between; }
+  .start-guide footer button { padding: 0 8px; }
+}

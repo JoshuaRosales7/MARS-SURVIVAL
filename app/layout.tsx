@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mars Survival | Inteligencia de misión",
+  title: "RedReturn | Inteligencia de misión",
   description: "Planifica, compara y simula expediciones marcianas con un modelo científico transparente.",
 };
 
