@@ -64,10 +64,33 @@ function clamp(value: number, min: number, max: number) {
 
 function localAnswer(question: string, critical: keyof typeof labels, probability: number, actions: AresAction[]) {
   const q = question.trim().toLowerCase();
-  if (!q) return `ARES estima ${probability.toFixed(0)}% de éxito bajo las variaciones simuladas. El cuello de botella es ${labels[critical]}.`;
-  if (/por qu[eé]|riesgo|falla/.test(q)) return `El principal riesgo es ${labels[critical]}: fue la restricción con menor tasa de cumplimiento en los escenarios simulados. ${actions[0]?.rationale || "Conviene aumentar el margen antes de autorizar la salida."}`;
-  if (/mejor|optim|cambiar|recom/.test(q)) return actions.length ? `La mejora de mayor impacto es: ${actions[0].label}. ${actions[0].rationale}` : "La configuración ya conserva holgura en las restricciones modeladas; mantén la contingencia y valida el terreno.";
-  return `Con los datos disponibles, la misión alcanza ${probability.toFixed(0)}% de éxito simulado y está limitada por ${labels[critical]}. ARES no considera pendiente, rocas ni meteorología espacial en tiempo real.`;
+  if (!q) {
+    return `ARES estima un ${probability.toFixed(0)}% de probabilidad de éxito simultáneo bajo 800 variaciones estocásticas. El factor más sensible es ${labels[critical]}. ${actions[0] ? `Recomendación: ${actions[0].label}.` : "Los márgenes son estables."}`;
+  }
+  if (/regreso|vuelta|retorno/.test(q)) {
+    return "El regreso obligatorio es la regla fundamental de RedReturn: duplicar la distancia de planificación asegura que el rover tenga suficiente energía, aire y agua no solo para llegar al objetivo, sino para volver a salvo a la base ante cualquier contingencia.";
+  }
+  if (/ox[ií]geno/.test(q)) {
+    return `Cada astronauta consume entre 0.84 y 1.0 kg de O₂ por día en actividad moderada. El consumo se multiplica por la tripulación, la duración y la contingencia. ${critical === "oxygen" ? "¡Atención! El oxígeno es actualmente tu factor crítico." : "Actualmente el oxígeno se mantiene dentro de los márgenes seguros de la misión."}`;
+  }
+  if (/energ[ií]a|bater[ií]a|kwh/.test(q)) {
+    return `La energía eléctrica es crítica no solo para la tracción del rover, sino para los calentadores térmicos que evitan la congelación del soporte vital frente a temperaturas nocturnas de hasta −120°C. ${critical === "energy" ? "La batería actual no garantiza el regreso completo." : "La reserva de batería es suficiente para el perfil actual."}`;
+  }
+  if (/tripula|persona|tripulante/.test(q)) {
+    return "Incrementar el número de tripulantes multiplica linealmente el consumo horario de oxígeno y agua. Si aumentas la tripulación, debes elevar proporcionalmente los depósitos o acortar la duración de la travesía.";
+  }
+  if (/terreno|pendiente|roca|dem/.test(q)) {
+    return "Aviso de integridad científica: El modelo actual calcula geodesia global sobre la esfera de referencia de Marte (3,389.5 km). Los desniveles locales del Terreno 3D son proxies reproducibles; hasta conectar un DEM puntual MOLA/HRSC, la seguridad topográfica se clasifica como 'datos insuficientes'.";
+  }
+  if (/por qu[eé]|riesgo|falla|peligro/.test(q)) {
+    return `El principal factor limitante es ${labels[critical]}: fue la restricción con menor tasa de cumplimiento en los escenarios simulados. ${actions[0]?.rationale || "Se recomienda incrementar el margen de reserva o reducir la distancia antes de autorizar la salida de la base."}`;
+  }
+  if (/mejor|optim|cambiar|recom|aumentar/.test(q)) {
+    return actions.length
+      ? `La acción prioritaria calculada por ARES es: "${actions[0].label}". ${actions[0].rationale}`
+      : "La configuración actual conserva suficiente holgura en todas las restricciones modeladas (+P90). Mantén la contingencia operativa y valida el terreno antes de partir.";
+  }
+  return `Con los parámetros configurados, la misión alcanza un ${probability.toFixed(0)}% de éxito simulado y el cuello de botella es ${labels[critical]}. ${actions[0] ? `Ajuste sugerido: ${actions[0].label}.` : "Recuerda validar las condiciones topográficas del terreno antes del despliegue."}`;
 }
 
 /**

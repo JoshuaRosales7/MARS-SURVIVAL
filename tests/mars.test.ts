@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG, evaluateMission, greatCircleDistance, initialBearing, interpolateGreatCircle, normalizeLon } from "../lib/mars";
 import { analyzeMissionRobustly } from "../lib/ares";
 import { buildConceptualTerrain, conceptualElevationM } from "../lib/terrain";
+import { LANDMARKS, MISSION_TEMPLATES, MARS_PLANETARY_FACTS, SURVIVAL_GUIDE_ITEMS } from "../data/mars";
 
 describe("Mars geodesy", () => {
   it("returns zero for identical points", () => expect(greatCircleDistance({lat:0,lon:0},{lat:0,lon:0})).toBe(0));
@@ -37,6 +38,12 @@ describe("ARES uncertainty engine", () => {
     expect(result.constraintProbabilities.oxygen).toBeLessThan(100);
     expect(result.actions.some(action => action.configPatch.oxygenKg !== undefined)).toBe(true);
   });
+  it("provides informative answers to custom operational questions", () => {
+    const o2Answer = analyzeMissionRobustly(route, DEFAULT_CONFIG, "¿Cuánto oxígeno necesito?", 100);
+    expect(o2Answer.answer.toLowerCase()).toContain("oxígeno");
+    const returnAnswer = analyzeMissionRobustly(route, DEFAULT_CONFIG, "¿Por qué el regreso obligatorio?", 100);
+    expect(returnAnswer.answer.toLowerCase()).toContain("regreso");
+  });
 });
 
 describe("Conceptual terrain laboratory", () => {
@@ -57,5 +64,40 @@ describe("Conceptual terrain laboratory", () => {
   });
   it("keeps the conceptual surface stable for a seed", () => {
     expect(conceptualElevationM(1.2, -.4, 12345)).toBe(conceptualElevationM(1.2, -.4, 12345));
+  });
+});
+
+describe("Mars scientific and educational dataset", () => {
+  it("contains valid and bounded coordinates for all landmarks", () => {
+    expect(LANDMARKS.length).toBeGreaterThanOrEqual(15);
+    for (const lm of LANDMARKS) {
+      expect(lm.lat).toBeGreaterThanOrEqual(-90);
+      expect(lm.lat).toBeLessThanOrEqual(90);
+      expect(lm.lon).toBeGreaterThanOrEqual(-180);
+      expect(lm.lon).toBeLessThanOrEqual(180);
+      expect(lm.name.length).toBeGreaterThan(0);
+      expect(lm.kind.length).toBeGreaterThan(0);
+      expect(lm.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("contains complete mission templates that evaluate without errors", () => {
+    expect(MISSION_TEMPLATES.length).toBeGreaterThanOrEqual(5);
+    for (const tmpl of MISSION_TEMPLATES) {
+      expect(tmpl.title.length).toBeGreaterThan(0);
+      expect(tmpl.learningGoal.length).toBeGreaterThan(0);
+      const evalRes = evaluateMission([tmpl.base, tmpl.destination], { ...DEFAULT_CONFIG, ...tmpl.configPatch });
+      expect(Number.isFinite(evalRes.distanceKm)).toBe(true);
+      expect(evalRes.durationHours).toBeGreaterThan(0);
+    }
+  });
+
+  it("contains rich planetary facts and survival guide topics", () => {
+    expect(MARS_PLANETARY_FACTS.length).toBeGreaterThanOrEqual(8);
+    expect(SURVIVAL_GUIDE_ITEMS.length).toBeGreaterThanOrEqual(5);
+    for (const item of SURVIVAL_GUIDE_ITEMS) {
+      expect(item.scientificExplanation.length).toBeGreaterThan(20);
+      expect(item.safetyRule.length).toBeGreaterThan(10);
+    }
   });
 });
